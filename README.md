@@ -1,98 +1,179 @@
-# AI Agent Harness Kit (`agent-harness-kit`)
-### Universal Harness Architect, Context Hygiene & Verification Toolkit for AI Coding Agents
-**Built by [MUMRO Academy](https://academy.mumro.io) · [RolePlayingTech](https://mumro.io)**
+# Universal AI Agent Harness Kit (`agent-harness-kit` v2.0)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![MUMRO Academy Lesson](https://img.shields.io/badge/MUMRO_Academy-Lesson_13:_Harness_Engineering-ff5a36)](https://academy.mumro.io/lessons/ai-agent-harness-engineering/)
+[![Agent Skills Standard](https://img.shields.io/badge/Standard-AGENTS.md_%26_SKILL.md-10b981)](https://agents.md)
+[![Version](https://img.shields.io/badge/Version-2.0.0-3b82f6)](./package.json)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero_(Node_20%2B)-8b5cf6)](./package.json)
+[![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b)](./LICENSE)
 
-> **`Agent = Model + Harness`**
-> Frontier models (Claude, GPT, Gemini) are the engine. The **Harness** is the steering, brakes, context map, tool registry, and deterministic verification loop around that engine.
-
-Instead of writing `AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, and verification loops from scratch for every new project, drop **`agent-harness-kit`** into your repository. Your AI agent will **automatically inspect your codebase, ask you 5 architectural questions, and generate a lean, context-efficient harness** tailored to your exact stack.
-
----
-
-## 🌍 Read in English or Polish / Czytaj po angielsku lub po polsku
-* [🇬🇧 English Guide](#-quick-start-30-seconds)
-* [🇵🇱 Polska Instrukcja](#-szybki-start-po-polsku-30-sekund)
+> **Interactive Dual-Mode (Greenfield & Brownfield) AI Agent Harness Architect, Testing-vs-Context Trade-off Advisor, and Verification CLI.**
+> Built for **Claude Code, Cursor, GitHub Copilot, OpenAI Codex, Windsurf, and Google Antigravity**.
+>
+> 🇵🇱 **[Pełny Podręcznik po Polsku (`docs/GUIDE_PL.md`)](./docs/GUIDE_PL.md)** | 🇬🇧 **[Complete English Guide (`docs/GUIDE_EN.md`)](./docs/GUIDE_EN.md)** | 📊 **[Testing vs. Context Playbook (`docs/TESTING_AND_CONTEXT_PLAYBOOK.md`)](./docs/TESTING_AND_CONTEXT_PLAYBOOK.md)**
 
 ---
 
-## 🚀 Quick Start (30 Seconds)
+## Why v2.0? Guiding the Developer "By the Hand" Across Two Distinct Paths
 
-### Option A: One-Command Bootstrap into Any Project
-Run this inside your new or existing project directory:
+Most AI prompt templates make one of two fatal mistakes:
+1. **In a brand-new empty repository (Greenfield):** They ask you for "exact linter flags and test commands" before a single line of code or technology stack even exists.
+2. **In an existing codebase (Brownfield):** They ask you "what language and framework do you use?" instead of reading `package.json`, `pyproject.toml`, or `.github/workflows` first — or worse, they silently overwrite your existing `AGENTS.md` and `SKILL.md` files.
+
+**`agent-harness-kit` v2.0** solves both problems with a **Dual-Mode Architecture**, an explicit **Testing Depth vs. Context Token Trade-off Advisor**, and a **non-destructive CLI lifecycle manager**.
+
+```
+                      ┌───────────────────────────────────────┐
+                      │   agent-harness inspect / init / AI   │
+                      └───────────────────┬───────────────────┘
+                                          │
+                  ┌───────────────────────┴───────────────────────┐
+                  ▼                                               ▼
+   ┌──────────────────────────────┐                ┌──────────────────────────────┐
+   │  PATH A: GREENFIELD WIZARD   │                │ PATH B: BROWNFIELD ONBOARDER │
+   │   (Empty / Idea-Stage Repo)  │                │  (Existing Codebase / Mono)  │
+   ├──────────────────────────────┤                ├──────────────────────────────┤
+   │ 1. Scope MVP & Non-Goals     │                │ 1. Silent Repo Scan FIRST    │
+   │ 2. Compare 2-3 Tech Stacks   │                │ 2. Present Grounded Evidence │
+   │ 3. Pick Testing/Token Profile│                │ 3. Discuss Unknowns & Risks  │
+   │ 4. Generate Blueprint + ADR  │                │ 4. Non-Destructive Install   │
+   └──────────────┬───────────────┘                └──────────────┬───────────────┘
+                  └───────────────────────┬───────────────────────┘
+                                          ▼
+                  ┌───────────────────────────────────────────────┐
+                  │  4 TESTING-VS-CONTEXT TRADE-OFF PROFILES      │
+                  │  • fast-prototype    (~300-600 tok/turn)      │
+                  │  • smart-tiered      (~800-1,500 tok/turn) ★  │
+                  │  • isolated-verifier (~500 tok main thread)   │
+                  │  • mission-critical  (~3,000-8,000 tok/turn)  │
+                  └───────────────────────────────────────────────┘
+```
+
+---
+
+## Quick Start (30 Seconds)
+
+### 1. Run via `npx` (Zero Install Required)
 
 ```bash
-git clone https://github.com/RolePlayingTech/agent-harness-kit.git /tmp/agent-harness-kit && node /tmp/agent-harness-kit/scripts/install-harness-kit.mjs .
+# 1. Inspect any folder (detects Greenfield vs. Brownfield, stack, scripts, risks)
+npx github:RolePlayingTech/agent-harness-kit inspect .
+
+# 2. Preview the recommended interview path & Testing-vs-Context trade-off matrix
+npx github:RolePlayingTech/agent-harness-kit plan .
+
+# 3. Safely install the 6 modular skills + generate harness & blueprint files
+npx github:RolePlayingTech/agent-harness-kit init . --profile smart-tiered --blueprint
+
+# 4. Run strict deterministic verification (CI-ready exit codes)
+npx github:RolePlayingTech/agent-harness-kit verify . --strict
 ```
 
-*(On Windows PowerShell)*:
-```powershell
-git clone https://github.com/RolePlayingTech/agent-harness-kit.git $env:TEMP\agent-harness-kit; node $env:TEMP\agent-harness-kit\scripts/install-harness-kit.mjs .
-```
+### 2. Run Interactive Hand-Holding Mode with Your AI Agent
 
-### Option B: Run the Interactive Architect Interview
-Open your AI coding agent (**Google Antigravity**, **Claude Code**, **Cursor**, or **OpenAI Codex**) and prompt:
+Once installed, open your AI coding agent (Claude Code, Cursor, Copilot, Windsurf, Codex, Antigravity) and prompt:
 
-> *"Use the `harness-architect` skill to inspect this project, interview me, and generate our AI harness."*
-
-### Option C: Audit Your Context Budget Anytime
-Verify that your `AGENTS.md` / `CLAUDE.md` files haven't bloated into token-burning encyclopedias:
-
-```bash
-node scripts/verify-harness.mjs
-```
+> 🇬🇧 **"Use the `harness-architect` skill. Inspect this repository and guide me step-by-step through our architecture, testing-vs-context trade-offs, and harness configuration."**
+>
+> 🇵🇱 **„Użyj skilla `harness-architect`. Przeskanuj to repozytorium i poprowadź mnie za rączkę przez architekturę, wybór profilu testów względem zużycia kontekstu oraz konfigurację uprzęży.”**
 
 ---
 
-## 📦 What's Inside the Kit?
+## The 6 Modular Skills (`skills/*/SKILL.md`)
 
-| Component | Path | Purpose |
+Instead of stuffing 5,000 tokens of rules into a single bloated root file that taxes every turn, `agent-harness-kit` keeps `AGENTS.md` under **80 lines** and loads specialized protocols **on demand**:
+
+| Skill Directory | Role & Activation Trigger | Est. On-Demand Tokens |
+| :--- | :--- | :---: |
+| [`skills/harness-architect`](./skills/harness-architect/SKILL.md) | **Master Dual-Mode Router:** Detects Path A (Greenfield) vs. Path B (Brownfield) and orchestrates the guided interview. | ~1,600 |
+| [`skills/greenfield-advisor`](./skills/greenfield-advisor/SKILL.md) | **Path A (New Repo):** Defines MVP boundaries & Non-Goals, compares 2–3 tech stacks, and writes `PROJECT_BRIEF.md`, `ARCHITECTURE.md`, ADR, and `ROADMAP.md`. | ~930 |
+| [`skills/brownfield-onboarder`](./skills/brownfield-onboarder/SKILL.md) | **Path B (Existing Repo):** Performs silent workspace reconnaissance first, presents grounded evidence, and asks only about fragile zones and trade-offs. | ~860 |
+| [`skills/testing-tradeoffs`](./skills/testing-tradeoffs/SKILL.md) | **Testing vs. Context Advisor:** Helps the user choose between `fast-prototype`, `smart-tiered`, `isolated-verifier`, and `mission-critical`. | ~1,030 |
+| [`skills/context-hygiene`](./skills/context-hygiene/SKILL.md) | **Context RAM & 7 Crisis Playbooks:** Enforces the 60% Context Ceiling, subagent isolation, and recovery from log floods, poisoning, and long-thread drift. | ~1,120 |
+| [`skills/verification-loop`](./skills/verification-loop/SKILL.md) | **Default-FAIL Evaluator & 3-Strike Circuit Breaker:** Prevents infinite repair loops and requires deterministic command proof before marking tasks `verified`. | ~900 |
+
+---
+
+## The Testing Depth vs. Context Token Trade-Off Matrix
+
+More tests mean higher code safety — but running verbose E2E suites in the main chat after every edit floods the context window and burns tokens. You choose the exact profile for your project stage:
+
+| Profile (`--profile`) | Inner Loop (Every Edit) | Outer Gate (Before Completion) | Est. Token Tax / Turn | Best For |
+| :--- | :--- | :--- | :--- | :--- |
+| **`fast-prototype`** | Fast typecheck / syntax only | Build check on demand | **~300–600 tokens** | Hackathons, weekend PoCs, UI spikes |
+| **`smart-tiered`** *(Default)* | Typecheck + 1 targeted unit test for touched file | Full build + integration/E2E suite once before commit | **~800–1,500 tokens** | **90% of production engineering projects** |
+| **`isolated-verifier`** | Fast typecheck in main session | Heavy E2E / test suite delegated to an isolated subagent returning `<200 words` | **~500 tokens in main chat** | Apps with noisy Playwright, Cypress, or Docker logs |
+| **`mission-critical`** | Typecheck + lint + unit suite + coverage | Full E2E + security audit + schema validation | **~3,000–8,000 tokens** | Payments, auth, billing, DB migrations |
+
+---
+
+## Complete CLI Reference (`agent-harness`)
+
+| Command | Flags | Behavior & Exit Code Contract |
 | :--- | :--- | :--- |
-| **`harness-architect`** | [`skills/harness-architect/SKILL.md`](./skills/harness-architect/SKILL.md) | **Initializer & Interview Skill:** Auto-detects stack (`package.json`, `pyproject.toml`, `Cargo.toml`), asks 5 targeted questions, and scaffolds `<65-line` `AGENTS.md`, `CLAUDE.md`, modular skills, and verification gates. |
-| **`context-hygiene`** | [`skills/context-hygiene/SKILL.md`](./skills/context-hygiene/SKILL.md) | **Context Window Protection:** Enforces the 60% RAM ceiling, Progressive Disclosure, Scout Subagent isolation (saving 80–90% tokens), and clean `/compact` handoffs. |
-| **`verification-loop`** | [`skills/verification-loop/SKILL.md`](./skills/verification-loop/SKILL.md) | **Default-FAIL Quality Loop:** Prevents premature "early victory" claims by enforcing deterministic compiler/linter/test checks and Fresh-Context Evaluator reviews. |
-| **Context Budget Linter** | [`scripts/verify-harness.mjs`](./scripts/verify-harness.mjs) | Zero-dependency Node.js check ensuring root instruction files stay under 80 lines (~450 tokens) and all skills have valid YAML frontmatter. |
-| **Reference Blueprints** | [`templates/`](./templates/) | Copy-ready `AGENTS.template.md` and Anthropic-style `feature_list.template.json` multi-session task ledger. |
+| `agent-harness inspect [dir]` | `--json` | **Read-only.** Detects `greenfield`, `brownfield`, or `monorepo`, languages, frameworks, scripts, CI, and risks. Never modifies files. |
+| `agent-harness plan [dir]` | `--json` | **Read-only.** Outputs the recommended interview path (Path A vs. Path B), stack/testing trade-off matrix, and tailored questions. |
+| `agent-harness init [dir]` | `--mode auto\|greenfield\|brownfield`<br>`--profile <id>`<br>`--policy strict\|balanced\|expansive`<br>`--security <tier>`<br>`--adapters claude,cursor,copilot,windsurf`<br>`--blueprint`<br>`--dry-run` `--force` | **Safe & Non-Destructive by default.** Installs skills to `.agents/skills/`, creates `AGENTS.md`, `HANDOFF.md`, `feature_list.json` (initialized as `pending`), optional `docs/` blueprint, and `.agents/harness-manifest.json` with SHA-256 checksums. Preserves existing user files unless `--force` is passed. |
+| `agent-harness verify [dir]` | `--strict` `--policy <id>` `--json` | **Deterministic Gate.** Validates root `AGENTS.md` existence & line budget, real YAML frontmatter & schema on all `SKILL.md` files, referenced file paths, `package.json` scripts, and `feature_list.json` Default-FAIL integrity. Exits `1` on failure. |
+| `agent-harness audit [dir]` | `--policy <id>` `--json` | **Advisory Report.** Calculates Always-On vs. On-Demand token tax and architectural drift warnings. |
+| `agent-harness doctor [dir]` | `--json` | **Diagnostic Guide.** Runs verification and outputs exact remediation commands for every error or warning. |
+| `agent-harness update [dir]` | `--dry-run` `--force` | Updates only unmodified managed skill files by comparing current SHA-256 hashes against `.agents/harness-manifest.json`. |
+| `agent-harness uninstall [dir]` | `--dry-run` `--force` | Removes unmodified harness files tracked in `.agents/harness-manifest.json` while preserving any user-customized files. |
 
 ---
 
-## 🇵🇱 Szybki Start po Polsku (30 Sekund)
+## Multi-Tool Compatibility Matrix (`--adapters`)
 
-Zamiast pisać pliki `AGENTS.md`, `CLAUDE.md` i reguły weryfikacji od zera przy każdym nowym projekcie, pobierz **`agent-harness-kit`**. Twój własny agent AI użyje naszego skilla **`harness-architect`**, przeskanuje projekt, zada Ci **5 konkretnych pytań o architekturę** i wygeneruje gotową, odchudzoną uprząż (Harness).
-
-### Krok 1: Zainstaluj zestaw w swoim projekcie
-W katalogu swojego projektu uruchom:
-
-**Windows (PowerShell):**
-```powershell
-git clone https://github.com/RolePlayingTech/agent-harness-kit.git $env:TEMP\agent-harness-kit; node $env:TEMP\agent-harness-kit\scripts/install-harness-kit.mjs .
-```
-
-**macOS / Linux (Bash):**
-```bash
-git clone https://github.com/RolePlayingTech/agent-harness-kit.git /tmp/agent-harness-kit && node /tmp/agent-harness-kit/scripts/install-harness-kit.mjs .
-```
-
-### Krok 2: Uruchom Architekta Uprzęży w swoim agencie AI
-Otwórz **Google Antigravity**, **Claude Code**, **Cursor** lub **Codex** i napisz:
-
-> *„Użyj skilla `harness-architect` — przeanalizuj ten projekt, zadaj mi pytania i przygotuj dla nas kompletny harness.”*
-
-### Krok 3: Zweryfikuj budżet kontekstu
-W każdej chwili możesz sprawdzić, czy Twój plik `AGENTS.md` / `CLAUDE.md` nie spuchł powyżej 80 linii i nie marnuje tokenów:
-
-```bash
-node scripts/verify-harness.mjs
-```
+| AI Coding Tool | Native Discovery File | Adapter Flag | How It Works |
+| :--- | :--- | :--- | :--- |
+| **Codex / OpenCode / Antigravity / Zed** | `AGENTS.md` + `.agents/skills/*/SKILL.md` | *(Default)* | Native `AGENTS.md` & Agent Skills discovery |
+| **Anthropic Claude Code** | `CLAUDE.md` | `--adapters claude` | Generates lightweight `@AGENTS.md` import bridge |
+| **Cursor** | `.cursor/rules/00-harness.mdc` | `--adapters cursor` | Generates MDC rule pointing to `AGENTS.md` & `.agents/skills/` |
+| **GitHub Copilot** | `.github/copilot-instructions.md` | `--adapters copilot` | Bridges Copilot workspace instructions to `AGENTS.md` |
+| **Windsurf** | `.windsurfrules` | `--adapters windsurf` | Bridges Windsurf rules to `AGENTS.md` |
 
 ---
 
-## 📚 Deep-Dive Tutorial in MUMRO Academy
+## 🇵🇱 Podsumowanie po Polsku (PL)
 
-Want to understand the full engineering science behind **AI Agent Harnesses**, **Context Pollution**, **Subagent Isolation**, and **Prepare → Confirm Governance**?
+**`agent-harness-kit` v2.0** to kompletny zestaw narzędzi i skilli prowadzący programistę **za rączkę** w dwóch trybach:
+1. **Ścieżka A (Nowy Projekt / Greenfield):** Gdy uruchamiasz skilla w pustym folderze, agent nie pyta o nieistniejący kod — pomaga Ci zdefiniować MVP oraz *Non-Goals*, porównuje 2–3 stosy technologiczne (koszt, szybkość, czytelność dla AI), dobiera profil testów i generuje pełny blueprint (`docs/PROJECT_BRIEF.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `feature_list.json`).
+2. **Ścieżka B (Istniejący Projekt / Brownfield):** Gdy uruchamiasz skilla na działającym repozytorium, agent **najpierw po cichu skanuje pliki projektu**, prezentuje wykryte technologie i ryzyka, a następnie rozmawia z Tobą o kompromisach (np. ile testów uruchamiać, żeby nie spalić okna kontekstowego i tokenów).
 
-* 🇬🇧 **Read in English:** [Lesson 13: AI Agent Harness Engineering — From First Principles to Context Mastery](https://academy.mumro.io/lessons/ai-agent-harness-engineering/)
-* 🇵🇱 **Czytaj po polsku:** [Lekcja 13: Czym jest AI Harness (Uprząż Agenta) — Od podstaw po oszczędzanie kontekstu i jakość kodu](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/)
-* 🌐 **Explore MUMRO (The Brand & Content Harness for AI Agents):** [https://mumro.io](https://mumro.io)
+👉 Przeczytaj pełny przewodnik krok po kroku w pliku **[`docs/GUIDE_PL.md`](./docs/GUIDE_PL.md)**.
+
+---
+
+## Repository Structure
+
+```text
+agent-harness-kit/
+├── AGENTS.md                              # Self-hosted <80-line operational map
+├── bin/
+│   └── agent-harness.mjs                  # Unified CLI (inspect, plan, init, verify, audit, doctor, update, uninstall)
+├── src/
+│   ├── detector.mjs                       # Read-only Greenfield/Brownfield/Monorepo workspace detector
+│   ├── profiles.mjs                       # 4 Testing-vs-Context profiles, 3 Context policies, 4 Security tiers, Stack catalog
+│   ├── yaml-validator.mjs                 # Strict YAML frontmatter & Agent Skills schema parser
+│   ├── installer.mjs                      # Safe non-destructive installer, SHA-256 manifest, update & uninstall
+│   └── auditor.mjs                        # Strict verifier, broken-link & script drift detector, token calculator
+├── skills/
+│   ├── harness-architect/SKILL.md         # Master Dual-Mode Router (Path A & Path B)
+│   ├── greenfield-advisor/SKILL.md        # Path A: Idea -> Stack Matrix -> Blueprint
+│   ├── brownfield-onboarder/SKILL.md      # Path B: Silent Repo Scan -> Grounded Interview
+│   ├── testing-tradeoffs/SKILL.md         # Interactive Testing Depth vs. Context Token Advisor
+│   ├── context-hygiene/SKILL.md           # 60% Context Ceiling & 7 Crisis Playbooks
+│   └── verification-loop/SKILL.md         # Default-FAIL Evaluator & 3-Strike Circuit Breaker
+├── docs/
+│   ├── GUIDE_PL.md                        # Pełny podręcznik użytkownika "za rączkę" (PL)
+│   ├── GUIDE_EN.md                        # Complete step-by-step user guide (EN)
+│   ├── TESTING_AND_CONTEXT_PLAYBOOK.md    # Token economics, testing profiles & crisis recovery
+│   └── schemas/feature-list.schema.json   # Local JSON Schema for Default-FAIL task ledger
+├── examples/
+│   ├── greenfield-saas-mvp/WALKTHROUGH.md
+│   └── brownfield-legacy-audit/WALKTHROUGH.md
+└── tests/
+    └── harness-kit.test.mjs               # Automated node:test unit & integration test suite
+```
+
+## License
+
+MIT © RolePlayingTech & MUMRO Academy ([academy.mumro.io](https://academy.mumro.io))

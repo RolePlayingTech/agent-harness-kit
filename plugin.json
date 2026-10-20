@@ -1,13 +1,16 @@
 {
   "name": "agent-harness-kit",
-  "version": "1.0.0",
-  "description": "Universal AI Agent Harness Architect & Context Hygiene Toolkit for Claude Code, Google Antigravity, OpenAI Codex, and Cursor. Interactive project interview skill, progressive disclosure scaffolding, subagent isolation workflows, Default-FAIL verification loops, and a zero-dependency Context Budget Linter.",
+  "version": "2.0.0",
+  "description": "Dual-Mode AI Agent Project Wizard (Greenfield & Brownfield), Testing-vs-Context Trade-Off Advisor, 7 Context Crisis Playbooks & Deterministic Verification CLI for Claude Code, Google Antigravity, OpenAI Codex, and Cursor.",
   "author": "RolePlayingTech (MUMRO Academy)",
   "homepage": "https://academy.mumro.io/lessons/ai-agent-harness-engineering/",
   "repository": "https://github.com/RolePlayingTech/agent-harness-kit",
   "license": "MIT",
   "skills": [
     "harness-architect",
+    "greenfield-advisor",
+    "brownfield-onboarder",
+    "testing-tradeoffs",
     "context-hygiene",
     "verification-loop"
   ]

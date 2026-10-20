@@ -1,21 +1,27 @@
 {
-  "$schema": "https://academy.mumro.io/schemas/feature-list-v1.json",
+  "$schema": "./docs/schemas/feature-list.schema.json",
   "project": "your-project-name",
-  "harnessPattern": "Anthropic Initializer + Incremental Coding Agent (Default-FAIL Contract)",
+  "harnessVersion": "2.0.0",
+  "testingProfile": "smart-tiered",
+  "contextPolicy": "balanced",
   "features": [
     {
       "id": "FEAT-001",
       "title": "Workspace Harness & Verification Loop Setup",
-      "status": "passed",
+      "status": "pending",
+      "dependencies": [],
       "verificationCommand": "node scripts/verify-harness.mjs",
-      "notes": "AGENTS.md under 65 lines, progressive disclosure skills wired."
+      "verificationEvidence": null,
+      "nextAction": "Run `node scripts/verify-harness.mjs` and record the passing output."
     },
     {
       "id": "FEAT-002",
       "title": "Core Domain Feature Implementation",
-      "status": "failing",
+      "status": "pending",
+      "dependencies": ["FEAT-001"],
       "verificationCommand": "npm test",
-      "notes": "Starts in Default-FAIL state until deterministic test suite exits 0."
+      "verificationEvidence": null,
+      "nextAction": "Define acceptance criteria in docs/PROJECT_BRIEF.md and implement with tests."
     }
   ]
 }

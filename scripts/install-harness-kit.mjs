@@ -1,43 +1,57 @@
 #!/usr/bin/env node
 /**
- * One-liner Bootstrap Installer for AI Agent Harness Kit
- * Usage: node scripts/install-harness-kit.mjs [target-project-dir]
+ * Safe Non-Destructive Bootstrap Installer (`scripts/install-harness-kit.mjs`)
+ * Fixes Issue #7: Never silently overwrites existing user skills or AGENTS.md by default.
+ * Usage: node scripts/install-harness-kit.mjs [target-dir] [--dry-run] [--force] [--blueprint] [--provider universal|claude|codex|cursor|antigravity]
  */
 
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+import { installHarness } from '../src/installer.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const kitRoot = resolve(__dirname, '..');
-const targetRoot = resolve(process.argv[2] || process.cwd());
+const args = process.argv.slice(2);
+const flags = {};
+let targetArg = '.';
 
-console.log(`Installing AI Agent Harness Kit into: ${targetRoot}`);
-
-// 1. Copy skills to .agents/skills/ (Antigravity / Codex / Universal) & .claude/skills/ (Claude Code)
-const targets = [
-  join(targetRoot, '.agents', 'skills'),
-  join(targetRoot, '.claude', 'skills'),
-];
-
-for (const dest of targets) {
-  mkdirSync(dest, { recursive: true });
-  cpSync(join(kitRoot, 'skills'), dest, { recursive: true });
-  console.log(`  ✓ Installed skills into ${dest}`);
+for (let i = 0; i < args.length; i++) {
+  const a = args[i];
+  if (a.startsWith('--')) {
+    const key = a.slice(2);
+    const next = args[i + 1];
+    if (next && !next.startsWith('-')) {
+      flags[key] = next;
+      i++;
+    } else {
+      flags[key] = true;
+    }
+  } else {
+    targetArg = a;
+  }
 }
 
-// 2. Copy Context Budget Linter into scripts/verify-harness.mjs
-const scriptsDest = join(targetRoot, 'scripts');
-mkdirSync(scriptsDest, { recursive: true });
-const linterDest = join(scriptsDest, 'verify-harness.mjs');
-if (!existsSync(linterDest)) {
-  cpSync(join(kitRoot, 'scripts', 'verify-harness.mjs'), linterDest);
-  console.log(`  ✓ Installed Context Budget Linter at ${linterDest}`);
-}
+const targetRoot = resolve(targetArg);
+const result = installHarness(targetRoot, {
+  provider: flags.provider || 'universal',
+  testing: flags.testing || 'smart-tiered',
+  context: flags.context || 'balanced',
+  blueprint: Boolean(flags.blueprint),
+  dryRun: Boolean(flags['dry-run']),
+  force: Boolean(flags.force),
+});
 
+console.log(`AI Agent Harness Kit v2.0 — ${result.dryRun ? 'DRY RUN' : 'INSTALLED'} (${targetRoot})`);
+console.log(`  • Mode Detected:   ${result.mode}`);
+console.log(`  • Provider:        ${result.provider}`);
+console.log(`  • Created Files:   ${result.created.length}`);
+console.log(`  • Updated Files:   ${result.updated.length}`);
+console.log(`  • Unchanged Files: ${result.skippedUnchanged.length}`);
+if (result.skippedConflicts.length > 0) {
+  console.log(
+    `  ! Preserved ${result.skippedConflicts.length} existing customized file(s): ${result.skippedConflicts.join(', ')} (use --force to overwrite)`
+  );
+}
 console.log('\n==========================================================');
 console.log(' NEXT STEP: Open your AI agent (Claude Code, Antigravity,');
 console.log(' Cursor, or Codex) and prompt:');
-console.log('   "Use the harness-architect skill to interview me and');
-console.log('    build our project harness."');
+console.log('   "Use the harness-architect skill to guide me step by');
+console.log('    step (Greenfield or Brownfield) and configure our harness."');
 console.log('==========================================================');

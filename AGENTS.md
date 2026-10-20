@@ -1,24 +1,29 @@
-# AGENTS.md — AI Agent Harness Kit Operational Map
+# AGENTS.md — Universal AI Agent Harness Kit (v2.0)
 
 ## 1. Project Identity & Stack
-- **System:** Open-source AI Agent Harness Architect & Context Hygiene Toolkit (`RolePlayingTech/agent-harness-kit`).
-- **Stack:** Node.js (zero-dependency ES Modules `.mjs`), Markdown Skills (`SKILL.md`), JSON Plugin Manifest.
-- **Key Paths:** `skills/` (portable agent skills), `scripts/` (installers & context linter), `templates/` (reference specs).
+- **System:** `agent-harness-kit` — Interactive Dual-Mode (Greenfield & Brownfield) AI Agent Harness Architect, CLI, and 6-Skill Open Standard Kit.
+- **Stack:** Node.js >= 20 (ESM `.mjs`, zero external runtime dependencies), `node:test`, Markdown Agent Skills (`SKILL.md`).
+- **Key Paths:** `bin/agent-harness.mjs`, `src/` (`detector.mjs`, `profiles.mjs`, `installer.mjs`, `auditor.mjs`, `yaml-validator.mjs`), `skills/*/SKILL.md`, `tests/harness-kit.test.mjs`.
 
-## 2. Deterministic Verification Loop (Run Before Completing Any Task)
-1. **Context Budget & Skill Linter:** `node scripts/verify-harness.mjs`
+## 2. Deterministic Verification Loop (Mandatory Before Completing Any Task)
+1. **Unit & Integration Test Suite:** `npm test`
+2. **Strict Self-Verification & Budget Gate:** `npm run verify`
+3. **Health & Readiness Doctor:** `npm run doctor`
 
 ## 3. Context Hygiene & Subagent Rules
-- **Keep Main Context Under 60%:** Root `AGENTS.md` and `CLAUDE.md` files must stay under 65 lines.
-- **Delegate Broad Searches:** Use a `research` subagent for multi-file exploration; return only compact summaries.
-- **One Task = One Session:** Run `/compact` or start a fresh context window after completing each discrete task.
+- **60% Context Ceiling:** Treat the context window as working RAM; read targeted line ranges instead of dumping full files.
+- **Scout Subagents:** Delegate >4-file exploration or noisy test triage to an isolated subagent returning a `<250-word` synthesis.
+- **3-Strike Repair Circuit Breaker:** Max 3 consecutive auto-repair attempts per failing test before updating `HANDOFF.md` and escalating.
 
-## 4. Progressive Disclosure Map (Load Only When Needed)
-- Interactive Harness Bootstrapper & Interview → `skills/harness-architect/SKILL.md`
-- Token conservation & subagent isolation → `skills/context-hygiene/SKILL.md`
-- Default-FAIL verification & evaluator protocol → `skills/verification-loop/SKILL.md`
-- Reference templates → `templates/AGENTS.template.md`, `templates/feature_list.template.json`
+## 4. Progressive Disclosure Map (Load Just-In-Time)
+- Master Dual-Mode Router (Path A / Path B) → `skills/harness-architect/SKILL.md`
+- Path A: Greenfield Product & Stack Advisor → `skills/greenfield-advisor/SKILL.md`
+- Path B: Brownfield Silent Repo Reconnaissance → `skills/brownfield-onboarder/SKILL.md`
+- Interactive Testing vs. Context Token Advisor → `skills/testing-tradeoffs/SKILL.md`
+- Context Hygiene & 7 Crisis Playbooks → `skills/context-hygiene/SKILL.md`
+- Default-FAIL Evaluator & 3-Strike Circuit Breaker → `skills/verification-loop/SKILL.md`
 
 ## 5. Hard Guardrails (Red Lines — Require Human Confirmation)
-- NEVER push breaking changes to `main` without running `node scripts/verify-harness.mjs`.
-- NEVER bloat root instruction files above 80 lines.
+- NEVER overwrite user-customized `AGENTS.md` or `SKILL.md` files without explicit `--force` confirmation.
+- NEVER bloat root `AGENTS.md` or `CLAUDE.md` above 80 lines.
+- NEVER mark a feature `verified` in `feature_list.json` until its deterministic command exits with code `0`.

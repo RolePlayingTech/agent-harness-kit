@@ -1,0 +1,37 @@
+name: Harness Kit CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-verify:
+    name: Node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Run unit & integration test suite
+        run: npm test
+
+      - name: Run strict harness verification on self
+        run: npm run verify
+
+      - name: Test CLI inspect and plan on repository
+        run: |
+          node bin/agent-harness.mjs inspect .
+          node bin/agent-harness.mjs doctor .
