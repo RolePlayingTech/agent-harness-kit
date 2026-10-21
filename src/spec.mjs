@@ -85,7 +85,9 @@ export function normalizeAnswers(raw = {}) {
     if (value === undefined) continue;
     // PowerShell turns an unquoted `agents=codex,claude` into the single argument "agents=codex claude".
     if (key === 'agents') out[key] = splitList(typeof value === 'string' ? value.replace(/\s+/g, ',') : value);
-    else if (['approvals', 'stack'].includes(key)) out[key] = splitList(value);
+    else if (key === 'approvals' && typeof value === 'string' && !value.includes(',') && value.trim().split(/\s+/).every((w) => Object.hasOwn(APPROVALS, w))) {
+      out[key] = value.trim().split(/\s+/);
+    } else if (['approvals', 'stack'].includes(key)) out[key] = splitList(value);
     else if (key === 'rules') out[key] = Array.isArray(value) ? value.map(String).map((s) => s.trim()).filter(Boolean) : splitList(String(value).replaceAll('|', ','));
     else if (['fast', 'full', 'e2e'].includes(key)) out[key] = value === null || String(value).trim() === '' || String(value).trim() === 'none' ? null : String(value).trim();
     else if (key === 'overrides') out[key] = value;

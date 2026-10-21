@@ -28,6 +28,10 @@ test('an agent list split by PowerShell into spaces is accepted like a comma lis
   const root = project(NEXT_APP);
   assert.equal(cli(['design', root, '--yes', '--set', 'agents=cursor claude']).code, 0);
   assert.deepEqual(JSON.parse(read(root, '.harness/spec.json')).agents, ['cursor', 'claude']);
+  assert.equal(cli(['design', root, '--yes', '--set', 'approvals=push deploy']).code, 0);
+  assert.deepEqual(JSON.parse(read(root, '.harness/spec.json')).approvals, ['push', 'deploy']);
+  assert.equal(cli(['design', root, '--yes', '--set', 'approvals=Ask before emailing customers']).code, 0);
+  assert.deepEqual(JSON.parse(read(root, '.harness/spec.json')).approvals, ['Ask before emailing customers']);
 });
 
 test('design without --yes in a non-interactive shell previews and writes nothing', () => {
