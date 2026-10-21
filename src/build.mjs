@@ -62,6 +62,21 @@ function op(root, rel, before, after, action, kind, reason) {
   return { rel, path, raw, before, after, action, kind, reason };
 }
 
+/** Takes the managed block out of a file, unless its content is no longer exactly what the kit wrote. */
+function planBlockRemoval(root, rel, current, prev, reason) {
+  const found = findBlock(current);
+  if (!found || found.malformed) {
+    return op(root, rel, current, current, 'orphaned', 'block', 'agent-harness markers are missing or malformed; left in place for you to review');
+  }
+  if (sha256(found.inner) !== prev.sha256) {
+    return op(root, rel, current, current, 'orphaned', 'block', 'the managed block was edited by hand; left in place, remove it yourself once your edits are saved elsewhere');
+  }
+  const stripped = withoutBlock(current);
+  const onlyHeader = stripped.trim() === '' || (prev.createdFile && /^#[^\n]*$/.test(stripped.trim()));
+  const del = onlyHeader && prev.createdFile;
+  return op(root, rel, current, del ? null : stripped, del ? 'delete' : 'update', 'block', reason);
+}
+
 function encodeLike(raw, text) {
   const crlf = raw !== null && raw.includes('\r\n');
   return Buffer.from(crlf ? text.replace(/\n/g, '\r\n') : text, 'utf8');
@@ -133,13 +148,11 @@ export function planBuild(targetDir, { force = false } = {}) {
   }
 
   for (const [rel, prev] of Object.entries(lock.entries)) {
-    if (rel in entries) continue;
+    if (Object.hasOwn(entries, rel)) continue;
     const current = readTextIfExists(safeJoin(root, rel));
     if (current === null) continue;
     if (prev.kind === 'block') {
-      const stripped = withoutBlock(current);
-      const onlyHeader = stripped.trim() === '' || (prev.createdFile && /^#[^\n]*$/.test(stripped.trim()));
-      ops.push(op(root, rel, current, onlyHeader && prev.createdFile ? null : stripped, onlyHeader && prev.createdFile ? 'delete' : 'update', 'block', 'module disabled: managed block removed'));
+      ops.push(planBlockRemoval(root, rel, current, prev, 'module disabled: managed block removed, your content is kept'));
     } else if (sha256(current) === prev.sha256) {
       ops.push(op(root, rel, current, null, 'delete', prev.kind, 'module disabled and file unchanged since the kit wrote it'));
     } else {
@@ -173,11 +186,7 @@ export function planRemove(targetDir) {
     const current = readTextIfExists(safeJoin(root, rel));
     if (current === null) continue;
     if (prev.kind === 'block') {
-      const found = findBlock(current);
-      if (!found || found.malformed) { ops.push(op(root, rel, current, current, 'orphaned', 'block', 'managed markers not found intact; review by hand')); continue; }
-      const stripped = withoutBlock(current);
-      const onlyHeader = stripped.trim() === '' || (prev.createdFile && /^#[^\n]*$/.test(stripped.trim()));
-      ops.push(op(root, rel, current, onlyHeader && prev.createdFile ? null : stripped, onlyHeader && prev.createdFile ? 'delete' : 'update', 'block', 'managed block removed; your content is kept'));
+      ops.push(planBlockRemoval(root, rel, current, prev, 'managed block removed; your content is kept'));
     } else if (sha256(current) === prev.sha256) {
       ops.push(op(root, rel, current, null, 'delete', prev.kind, 'unchanged since the kit wrote it'));
     } else {

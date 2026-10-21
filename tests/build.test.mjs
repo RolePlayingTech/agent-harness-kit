@@ -71,6 +71,44 @@ test('changing the spec moves outputs: unchanged files are removed, edited ones 
   assert.ok(!existsSync(join(root, '.agents/skills/harness-maintenance/SKILL.md')));
 });
 
+test('disabling a module never discards hand edits inside its managed block', () => {
+  const root = project({ ...NEXT_APP, 'CLAUDE.md': 'Team note.\n' });
+  design(root, ['agents=codex,claude']);
+  build(root);
+  const edited = read(root, 'CLAUDE.md').replace('@AGENTS.md', '@AGENTS.md\n@docs/style.md');
+  write(root, 'CLAUDE.md', edited);
+  design(root, ['agents=codex']);
+  const op = planBuild(root).ops.find((o) => o.rel === 'CLAUDE.md');
+  assert.equal(op.action, 'orphaned');
+  assert.match(op.reason, /edited by hand/);
+  assert.equal(build(root).code, 0);
+  assert.equal(read(root, 'CLAUDE.md'), edited);
+
+  const clean = project({ ...NEXT_APP, 'CLAUDE.md': 'Team note.\n' });
+  design(clean, ['agents=codex,claude']);
+  build(clean);
+  design(clean, ['agents=codex']);
+  assert.equal(build(clean).code, 0);
+  assert.equal(read(clean, 'CLAUDE.md'), 'Team note.\n', 'an untouched block is removed and user text kept');
+});
+
+test('remove keeps a hand-edited block and a block with broken markers', () => {
+  const root = project({ ...NEXT_APP, 'AGENTS.md': '# Mine\n' });
+  design(root, ['agents=codex,claude']);
+  build(root);
+  const agents = read(root, 'AGENTS.md').replace('## Purpose', '## Purpose\nOur own line.');
+  write(root, 'AGENTS.md', agents);
+  const claude = read(root, 'CLAUDE.md').replace('<!-- agent-harness:end -->', '');
+  write(root, 'CLAUDE.md', claude);
+  const r = cli(['remove', root]);
+  assert.equal(r.code, 0);
+  assert.match(r.out, /orphaned\s+AGENTS\.md/);
+  assert.match(r.out, /orphaned\s+CLAUDE\.md/);
+  assert.equal(read(root, 'AGENTS.md'), agents);
+  assert.equal(read(root, 'CLAUDE.md'), claude);
+  assert.ok(!existsSync(join(root, '.claude/skills/harness-maintenance/SKILL.md')), 'unchanged output is still removed');
+});
+
 test('seed files are created once and then belong to the project', () => {
   const root = project(NEXT_APP);
   design(root, ['agents=codex']);
