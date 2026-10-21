@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { NEXT_APP, build, design, jsonCli, project, read, write } from './helpers.mjs';
+import { NEXT_APP, build, cli, design, jsonCli, project, read, write } from './helpers.mjs';
 import { parseFrontmatter } from '../src/check.mjs';
 
 const codes = (report, level) => report.findings.filter((f) => !level || f.level === level).map((f) => f.code);
@@ -105,4 +105,17 @@ test('--run executes the configured checks and reports failures with output', ()
   assert.equal(lint.exitCode, 3);
   assert.match(lint.outputTail, /boom/);
   assert.equal(data.runs.find((r) => r.check === 'full').exitCode, 0);
+});
+
+test('check runs nothing without --run, and says what it runs with it', () => {
+  const root = project({ 'package.json': { name: 'r', scripts: { test: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\', \'1\')"' } } });
+  design(root, ['agents=codex']);
+  build(root);
+  const quiet = cli(['check', root]);
+  assert.match(quiet.out, /Commands were not executed/);
+  assert.ok(!existsSync(join(root, 'ran.txt')));
+  const r = cli(['check', root, '--run']);
+  assert.match(r.err, /--run executes the verification commands from \.harness\/spec\.json/);
+  assert.match(r.err, /Running full check: npm test/);
+  assert.ok(existsSync(join(root, 'ran.txt')));
 });

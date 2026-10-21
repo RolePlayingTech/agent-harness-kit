@@ -100,7 +100,7 @@ function tail(text, n) {
   return (text || '').replace(/\r\n?/g, '\n').trimEnd().split('\n').slice(-n).join('\n');
 }
 
-export function checkHarness(targetDir, { run = false, timeoutSeconds = 900 } = {}) {
+export function checkHarness(targetDir, { run = false, timeoutSeconds = 900, onRun = () => {} } = {}) {
   const root = resolve(targetDir);
   const findings = [];
   const add = (level, code, message, file) => findings.push({ level, code, message, file });
@@ -214,6 +214,7 @@ export function checkHarness(targetDir, { run = false, timeoutSeconds = 900 } = 
     for (const key of ['fast', 'full', 'e2e']) {
       const cmd = v[key];
       if (!cmd) continue;
+      onRun({ check: key, command: cmd });
       const started = Date.now();
       const res = spawnSync(cmd, { cwd: root, shell: true, encoding: 'utf8', timeout: timeoutSeconds * 1000, maxBuffer: 64 * 1024 * 1024 });
       const seconds = Math.round((Date.now() - started) / 100) / 10;

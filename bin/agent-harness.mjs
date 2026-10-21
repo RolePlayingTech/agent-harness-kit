@@ -252,7 +252,11 @@ try {
       if (!/^[1-9]\d*$/.test(flags.timeout)) fail('--timeout needs a positive whole number of seconds.');
       timeoutSeconds = Number(flags.timeout);
     }
-    const report = checkHarness(root, { run: Boolean(flags.run), timeoutSeconds });
+    if (flags.run) {
+      console.error(`--run executes the verification commands from ${SPEC_PATH} in ${root}, with your permissions.\nOnly use it on a repository whose code and spec you trust, as with \`npm test\`.\n`);
+    }
+    const onRun = ({ check, command: cmd }) => console.error(`Running ${check} check: ${cmd}`);
+    const report = checkHarness(root, { run: Boolean(flags.run), timeoutSeconds, onRun });
     const passed = report.passed && !(flags.strict && report.warnings > 0);
     if (json) { console.log(JSON.stringify({ ...report, passed }, null, 2)); process.exit(passed ? 0 : 1); }
     const order = { error: 0, warn: 1, info: 2 };
