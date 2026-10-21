@@ -89,6 +89,7 @@ Instead of stuffing 5,000 tokens of rules into a single bloated root file that t
 | [`skills/testing-tradeoffs`](./skills/testing-tradeoffs/SKILL.md) | **Testing vs. Context Advisor:** Helps the user choose between `fast-prototype`, `smart-tiered`, `isolated-verifier`, and `mission-critical`. | ~1,030 |
 | [`skills/context-hygiene`](./skills/context-hygiene/SKILL.md) | **Context RAM & 7 Crisis Playbooks:** Enforces the 60% Context Ceiling, subagent isolation, and recovery from log floods, poisoning, and long-thread drift. | ~1,120 |
 | [`skills/verification-loop`](./skills/verification-loop/SKILL.md) | **Default-FAIL Evaluator & 3-Strike Circuit Breaker:** Prevents infinite repair loops and requires deterministic command proof before marking tasks `verified`. | ~900 |
+| [`skills/recursive-refiner`](./skills/recursive-refiner/SKILL.md) | **Google Research `Harness²` Recursive Refiner (`c1..c8`):** Evolves the harness via Task-Level (`Propose → Probe → Compose`) and Harnessing-Level (`Experience Reflector`) recursion (arXiv:2610.14224). | ~780 |
 
 ---
 
@@ -115,6 +116,7 @@ More tests mean higher code safety — but running verbose E2E suites in the mai
 | `agent-harness verify [dir]` | `--strict` `--policy <id>` `--json` | **Deterministic Gate.** Validates root `AGENTS.md` existence & line budget, real YAML frontmatter & schema on all `SKILL.md` files, referenced file paths, `package.json` scripts, and `feature_list.json` Default-FAIL integrity. Exits `1` on failure. |
 | `agent-harness audit [dir]` | `--policy <id>` `--json` | **Advisory Report.** Calculates Always-On vs. On-Demand token tax and architectural drift warnings. |
 | `agent-harness doctor [dir]` | `--json` | **Diagnostic Guide.** Runs verification and outputs exact remediation commands for every error or warning. |
+| `agent-harness autotrigger [dir]` | `--json` | **Harness² Dead-Weight Skill Repair.** Ensures every `.agents/skills/<name>/SKILL.md` is explicitly named with a trigger condition in `AGENTS.md` (respecting the `8,000-char` Always-On cap). |
 | `agent-harness update [dir]` | `--dry-run` `--force` | Updates only unmodified managed skill files by comparing current SHA-256 hashes against `.agents/harness-manifest.json`. |
 | `agent-harness uninstall [dir]` | `--dry-run` `--force` | Removes unmodified harness files tracked in `.agents/harness-manifest.json` while preserving any user-customized files. |
 

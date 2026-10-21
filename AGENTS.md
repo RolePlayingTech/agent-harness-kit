@@ -22,6 +22,7 @@
 - Interactive Testing vs. Context Token Advisor → `skills/testing-tradeoffs/SKILL.md`
 - Context Hygiene & 7 Crisis Playbooks → `skills/context-hygiene/SKILL.md`
 - Default-FAIL Evaluator & 3-Strike Circuit Breaker → `skills/verification-loop/SKILL.md`
+- Recursive Harness Evolution (Harness² c1..c8) → `skills/recursive-refiner/SKILL.md`
 
 ## 5. Hard Guardrails (Red Lines — Require Human Confirmation)
 - NEVER overwrite user-customized `AGENTS.md` or `SKILL.md` files without explicit `--force` confirmation.

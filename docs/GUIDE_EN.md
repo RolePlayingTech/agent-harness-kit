@@ -112,5 +112,6 @@ Every generated harness encodes explicit permission boundaries (`--security`):
 - `agent-harness verify [dir] [--strict] [--json]` — Deterministic pass/fail verification for CI gates.
 - `agent-harness audit [dir] [--json]` — Advisory token tax & drift report.
 - `agent-harness doctor [dir]` — Actionable health check and remediation guide.
+- `agent-harness autotrigger [dir]` — Auto-repairs untriggered ("dead-weight") skills in `AGENTS.md` while enforcing Google Research's **Harness²** `8,000-char` Always-On cap (arXiv:2610.14224).
 - `agent-harness update [dir] [--dry-run] [--force]` — Safe checksum-verified upgrade of unmodified kit files.
 - `agent-harness uninstall [dir] [--dry-run] [--force]` — Clean removal of unmodified kit files.

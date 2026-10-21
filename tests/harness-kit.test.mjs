@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 
 import { validateSkillMarkdown } from '../src/yaml-validator.mjs';
 import { inspectWorkspace } from '../src/detector.mjs';
-import { auditHarness } from '../src/auditor.mjs';
+import { auditHarness, autotriggerSkills } from '../src/auditor.mjs';
 import { installHarness, uninstallHarness, KIT_ROOT } from '../src/installer.mjs';
 
 function makeTempDir(prefix = 'harness-test-') {
@@ -215,6 +215,59 @@ describe('4. Dual-Mode Auto-Discovery & CLI Integration (Issues #1, #2, #4, #6)'
       // Verify feature_list.json starts all tasks at "pending" (Issue #15)
       const ledger = JSON.parse(readFileSync(join(dir, 'feature_list.json'), 'utf8'));
       assert.ok(ledger.features.every((f) => f.status === 'pending'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('5. Google Research Harness² Standards (Untriggered Skills, Autotrigger & Hooks Schema)', () => {
+  test('flags untriggered skills as dead weight and repairs them via autotriggerSkills()', () => {
+    const dir = makeTempDir('harness2-autotrigger-');
+    try {
+      writeFileSync(join(dir, 'AGENTS.md'), '# AGENTS.md\n\n## 1. Identity\n- Test repo\n', 'utf8');
+      const skillDir = join(dir, '.agents', 'skills', 'custom-domain');
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(
+        join(skillDir, 'SKILL.md'),
+        '---\nname: custom-domain\ndescription: Domain rules for custom billing workflows.\n---\n\n# Custom Domain\nFollow strict billing rules.\n',
+        'utf8'
+      );
+
+      const before = auditHarness(dir, { mode: 'verify' });
+      assert.ok(before.findings.some((f) => f.code === 'UNTRIGGERED_SKILL'));
+
+      const repair = autotriggerSkills(dir);
+      assert.equal(repair.updated, true);
+      assert.deepEqual(repair.repairedSkills, ['custom-domain']);
+
+      const after = auditHarness(dir, { mode: 'verify' });
+      assert.ok(!after.findings.some((f) => f.code === 'UNTRIGGERED_SKILL'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('validates .codex/hooks.json PascalCase events and command hook schema', () => {
+    const dir = makeTempDir('harness2-hooks-');
+    try {
+      writeFileSync(join(dir, 'AGENTS.md'), '# AGENTS.md\n', 'utf8');
+      mkdirSync(join(dir, '.codex'), { recursive: true });
+      writeFileSync(
+        join(dir, '.codex', 'hooks.json'),
+        JSON.stringify({
+          hooks: {
+            invalid_snake_event: [{ hooks: [{ type: 'command', command: 'echo ok' }] }],
+            PreToolUse: [{ hooks: [{ type: 'prompt', command: '' }] }],
+          },
+        }),
+        'utf8'
+      );
+
+      const report = auditHarness(dir, { mode: 'verify' });
+      assert.equal(report.passed, false);
+      assert.ok(report.findings.some((f) => f.code === 'HOOKS_UNKNOWN_EVENT'));
+      assert.ok(report.findings.some((f) => f.code === 'HOOKS_UNSUPPORTED_TYPE'));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -149,5 +149,6 @@ Co zrobić, gdy podczas pracy z agentem coś idzie nie tak? Skill `context-hygie
 | `agent-harness verify [dir] --strict` | Twarda weryfikacja (kod wyjścia `1` przy przekroczeniu 80 linii `AGENTS.md`, błędach YAML lub niedziałających ścieżkach) |
 | `agent-harness audit [dir]` | Raport zużycia tokenów, brakujących skryptów i dryfu architektury (tryb doradczy) |
 | `agent-harness doctor [dir]` | Kompleksowa diagnostyka zdrowia uprzęży wraz z podpowiedziami naprawczymi |
+| `agent-harness autotrigger [dir]` | Automatycznie dopisuje brakujące wyzwalacze skilli do `AGENTS.md` (zgodnie ze standardem Google Research **Harness²**, arXiv:2610.14224, pilnując limitu 8 000 znaków) |
 | `agent-harness update [dir]` | Aktualizuje wyłącznie niemodyfikowane pliki skilli na podstawie sum kontrolnych SHA-256 w `.agents/harness-manifest.json` |
 | `agent-harness uninstall [dir]` | Bezpiecznie usuwa zarządzane pliki uprzęży, zostawiając w spokoju wszystko, co edytowałeś ręcznie |

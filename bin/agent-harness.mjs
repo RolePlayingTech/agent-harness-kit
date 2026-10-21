@@ -6,7 +6,7 @@
 
 import { resolve } from 'node:path';
 import { inspectWorkspace } from '../src/detector.mjs';
-import { auditHarness } from '../src/auditor.mjs';
+import { auditHarness, autotriggerSkills } from '../src/auditor.mjs';
 import { installHarness, uninstallHarness, KIT_VERSION } from '../src/installer.mjs';
 import {
   CONTEXT_POLICIES,
@@ -60,6 +60,7 @@ Commands:
   audit [dir]       Run architecture-drift, broken-reference & token-cost calculator audit
   verify [dir]      Strict Default-FAIL verification of AGENTS.md, SKILL.md YAML & feature_list.json
   doctor [dir]      Informational health check (warnings allowed)
+  autotrigger [dir] Auto-repair untriggered skills in AGENTS.md (Google Research Harness² standard)
   update [dir]      Upgrade unmodified managed harness files while preserving user edits
   uninstall [dir]   Remove only unmodified files managed by agent-harness-kit
 
@@ -196,6 +197,23 @@ if (command === 'uninstall') {
   console.log(`Removed unmodified managed files (${result.removed.length}): ${result.removed.join(', ') || 'none'}`);
   if (result.preservedModified.length > 0) {
     console.log(`Preserved user-customized files (${result.preservedModified.length}): ${result.preservedModified.join(', ')}`);
+  }
+  process.exit(0);
+}
+
+if (command === 'autotrigger') {
+  const res = autotriggerSkills(targetDir);
+  if (flags.json) {
+    console.log(JSON.stringify(res, null, 2));
+    process.exit(0);
+  }
+  console.log('==========================================================');
+  console.log(' AI AGENT HARNESS — AUTOTRIGGER REPAIR (Harness² Standard)');
+  console.log('==========================================================');
+  if (res.updated) {
+    console.log(`Added trigger lines to AGENTS.md for (${res.repairedSkills.length}): ${res.repairedSkills.join(', ')}`);
+  } else {
+    console.log(res.reason || 'All skills are already referenced in AGENTS.md (0 untriggered skills).');
   }
   process.exit(0);
 }

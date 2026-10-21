@@ -119,6 +119,7 @@ export function buildAgentsMdContent(recon, options = {}) {
 - Testing depth vs. context token trade-offs → \`.agents/skills/testing-tradeoffs/SKILL.md\`
 - Context crisis playbooks & subagents → \`.agents/skills/context-hygiene/SKILL.md\`
 - Default-FAIL gates & circuit breaker → \`.agents/skills/verification-loop/SKILL.md\`
+- Recursive harness evolution (Harness² c1..c8) → \`.agents/skills/recursive-refiner/SKILL.md\`
 
 ## 5. Hard Guardrails (Red Lines — Require Human Confirmation)
 - NEVER push directly to \`main\`, deploy to production, or run destructive DB migrations without explicit \`Prepare -> Confirm\` human sign-off.

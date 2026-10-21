@@ -3,7 +3,7 @@
  * Fixes Issues #8, #9, #12, #14, #15, #16, #19
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { validateSkillMarkdown } from './yaml-validator.mjs';
 import { CONTEXT_POLICIES } from './profiles.mjs';
@@ -17,9 +17,83 @@ const VALID_TASK_STATUSES = new Set([
   'verified',
 ]);
 
+/**
+ * Valid PascalCase lifecycle hook events from Google Research Harness² (CODEX_SURFACE).
+ */
+export const VALID_HOOK_EVENTS = new Set([
+  'PreToolUse',
+  'PostToolUse',
+  'PermissionRequest',
+  'PreCompact',
+  'PostCompact',
+  'SessionStart',
+  'SubagentStart',
+  'SubagentStop',
+  'UserPromptSubmit',
+  'Stop',
+]);
+
+export const ALWAYS_ON_MAX_CHARS = 8000;
+
 export function estimateTokens(text) {
   if (!text) return 0;
   return Math.ceil(text.length / 4);
+}
+
+/**
+ * Validates `.codex/hooks.json` or `.claude/hooks.json` schema (inspired by Google Research Harness² tree.py).
+ */
+export function validateHooksFile(relPath, rawJson, addFinding) {
+  let doc;
+  try {
+    doc = JSON.parse(rawJson);
+  } catch (e) {
+    addFinding('error', 'HOOKS_INVALID_JSON', relPath, `${relPath} is not valid JSON: ${e.message}`);
+    return;
+  }
+  const hooks = doc && typeof doc === 'object' ? doc.hooks : null;
+  if (!hooks || typeof hooks !== 'object' || Array.isArray(hooks) || Object.keys(hooks).length === 0) {
+    addFinding(
+      'error',
+      'HOOKS_SCHEMA_ERROR',
+      relPath,
+      `${relPath} needs a top-level {"hooks": {"<Event>": [...]}} object.`
+    );
+    return;
+  }
+  for (const [event, entries] of Object.entries(hooks)) {
+    if (!VALID_HOOK_EVENTS.has(event)) {
+      addFinding(
+        'error',
+        'HOOKS_UNKNOWN_EVENT',
+        relPath,
+        `${relPath}: unknown event "${event}". Expected PascalCase events: ${[...VALID_HOOK_EVENTS].join(', ')}.`
+      );
+      continue;
+    }
+    if (!Array.isArray(entries)) {
+      addFinding('error', 'HOOKS_SCHEMA_ERROR', relPath, `${relPath}: "${event}" must map to a list of matcher entries.`);
+      continue;
+    }
+    entries.forEach((entry, idx) => {
+      if (!entry || typeof entry !== 'object' || !Array.isArray(entry.hooks)) {
+        addFinding('error', 'HOOKS_SCHEMA_ERROR', relPath, `${relPath}: ${event}[${idx}] requires a "hooks" array.`);
+        return;
+      }
+      for (const h of entry.hooks) {
+        if (!h || typeof h !== 'object' || h.type !== 'command') {
+          addFinding(
+            'error',
+            'HOOKS_UNSUPPORTED_TYPE',
+            relPath,
+            `${relPath}: ${event}[${idx}] hook type must be "command".`
+          );
+        } else if (!String(h.command || '').trim()) {
+          addFinding('error', 'HOOKS_EMPTY_COMMAND', relPath, `${relPath}: ${event}[${idx}] has an empty "command".`);
+        }
+      }
+    });
+  }
 }
 
 /**
@@ -60,6 +134,16 @@ export function auditHarness(targetDir, options = {}) {
         name,
         `${name} has ${lines} lines (~${tokens} tokens), exceeding budget of ${maxRootLines} lines.`,
         'Extract detailed procedures into on-demand .agents/skills/<name>/SKILL.md files.'
+      );
+    }
+
+    if (content.length > ALWAYS_ON_MAX_CHARS) {
+      addFinding(
+        'error',
+        'ALWAYS_ON_CHAR_CAP_EXCEEDED',
+        name,
+        `${name} is ${content.length} chars, exceeding the ${ALWAYS_ON_MAX_CHARS}-char Always-On cap (Google Research Harness² CODEX_SURFACE standard).`,
+        `Trim ${name} under ${ALWAYS_ON_MAX_CHARS} chars so it does not compete with the agent's output budget or hit Codex's 32KB truncation.`
       );
     }
 
@@ -190,10 +274,38 @@ export function auditHarness(targetDir, options = {}) {
     validatedSkills.push({
       path: rel,
       name: validation.data?.name || null,
+      description: validation.data?.description || '',
       lines,
       tokens,
       valid: validation.valid,
     });
+  }
+
+  // 2b. Check Untriggered Skills ("Dead Weight" check from Google Research Harness² tree.py)
+  if (presentRoots.length > 0) {
+    const combinedAlwaysOn = presentRoots.map((r) => r.content).join('\n\n');
+    const checkedSkillNames = new Set();
+    for (const sk of validatedSkills) {
+      if (!sk.name || checkedSkillNames.has(sk.name)) continue;
+      checkedSkillNames.add(sk.name);
+      if (!combinedAlwaysOn.includes(sk.name)) {
+        addFinding(
+          'warning',
+          'UNTRIGGERED_SKILL',
+          sk.path,
+          `Skill "${sk.name}" is never named in the Always-On root text (AGENTS.md / CLAUDE.md) — an untriggered skill is dead weight (Google Research Harness² standard).`,
+          `Add a trigger line naming "${sk.name}" to AGENTS.md or run \`agent-harness autotrigger .\`.`
+        );
+      }
+    }
+  }
+
+  // 2c. Validate Hooks files if present (.codex/hooks.json, .claude/hooks.json)
+  for (const hookRel of ['.codex/hooks.json', '.claude/hooks.json']) {
+    const hookFull = join(targetDir, hookRel);
+    if (existsSync(hookFull)) {
+      validateHooksFile(hookRel, readFileSync(hookFull, 'utf8'), addFinding);
+    }
   }
 
   // 3. Validate feature_list.json if present (Fixes Issue #15 & #12)
@@ -281,4 +393,38 @@ export function auditHarness(targetDir, options = {}) {
     findings,
     reconnaissance,
   };
+}
+
+/**
+ * Automatically repairs untriggered skills by appending trigger pointers to AGENTS.md,
+ * respecting the 8,000-character Always-On cap (ported from Google Research Harness² `autotrigger()`).
+ */
+export function autotriggerSkills(targetDir) {
+  const agentsPath = join(targetDir, 'AGENTS.md');
+  if (!existsSync(agentsPath)) {
+    return { updated: false, repairedSkills: [], reason: 'No AGENTS.md found in workspace.' };
+  }
+  let body = readFileSync(agentsPath, 'utf8');
+  const audit = auditHarness(targetDir, { mode: 'audit' });
+  const repairedSkills = [];
+  const seen = new Set();
+
+  for (const sk of audit.skills) {
+    if (!sk.name || seen.has(sk.name)) continue;
+    seen.add(sk.name);
+    if (body.includes(sk.name)) continue;
+
+    const shortDesc = (sk.description || `the ${sk.name} workflow applies`).split('.')[0].trim();
+    const line = `- ${shortDesc} → \`${sk.path}\`\n`;
+    if (body.length + line.length + 2 > ALWAYS_ON_MAX_CHARS) {
+      continue;
+    }
+    body = `${body.trimEnd()}\n${line}`;
+    repairedSkills.push(sk.name);
+  }
+
+  if (repairedSkills.length > 0) {
+    writeFileSync(agentsPath, `${body.trimEnd()}\n`, 'utf8');
+  }
+  return { updated: repairedSkills.length > 0, repairedSkills };
 }
