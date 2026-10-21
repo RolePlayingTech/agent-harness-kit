@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { applyFilePlan } from './file-transaction.mjs';
 import { assertSafeTarget, normalizeText, readTextIfExists, safeJoin, sha256 } from './fs-safe.mjs';
-import { BLOCK_BEGIN, BLOCK_END, possibleOutputPaths, renderOutputs } from './render.mjs';
+import { BLOCK_BEGIN, BLOCK_END, possibleOutputKinds, renderOutputs } from './render.mjs';
 import { KIT_VERSION, LOCK_PATH, loadSpec } from './spec.mjs';
 
 export function findBlock(text) {
@@ -46,11 +46,14 @@ export function loadLock(root) {
   if (!lock || lock.lockVersion !== 1 || !lock.entries || typeof lock.entries !== 'object' || Array.isArray(lock.entries)) {
     throw new Error(`${LOCK_PATH} has an unexpected shape. Restore it from git before building.`);
   }
-  const allowed = possibleOutputPaths();
+  const allowed = possibleOutputKinds();
   for (const [rel, entry] of Object.entries(lock.entries)) {
     if (!allowed.has(rel)) throw new Error(`${LOCK_PATH} lists "${rel}", which agent-harness-kit never generates. Refusing to use it.`);
-    if (!entry || !['block', 'file', 'seed'].includes(entry.kind) || !/^[a-f0-9]{64}$/.test(entry.sha256 || '')) {
-      throw new Error(`${LOCK_PATH} has an invalid entry for "${rel}".`);
+    if (!entry || entry.kind !== allowed.get(rel) || !/^[a-f0-9]{64}$/.test(entry.sha256 || '')) {
+      throw new Error(`${LOCK_PATH} has an invalid entry for "${rel}": expected kind "${allowed.get(rel)}" and a valid sha256.`);
+    }
+    if (entry.createdFile !== undefined && (entry.kind !== 'block' || typeof entry.createdFile !== 'boolean')) {
+      throw new Error(`${LOCK_PATH} has an invalid createdFile flag for "${rel}".`);
     }
   }
   return lock;
