@@ -4,27 +4,34 @@
   "title": "agent-harness-kit spec",
   "description": "Decisions from which agent-harness-kit generates a repository's agent harness. Edit, then run `agent-harness build`.",
   "type": "object",
+  "additionalProperties": false,
   "required": ["specVersion", "project", "agents", "verification", "memory", "approvals", "rules"],
   "properties": {
     "$schema": { "type": "string" },
     "specVersion": { "const": 1 },
     "project": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["name", "summary", "stage", "stack", "layout"],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "summary": { "type": "string", "description": "One sentence: what the project is and for whom. Opens AGENTS.md." },
+        "name": { "$ref": "#/$defs/filledLine" },
+        "summary": { "$ref": "#/$defs/line", "description": "One sentence: what the project is and for whom. Opens AGENTS.md." },
         "stage": { "enum": ["new", "existing"] },
-        "stack": { "type": "array", "items": { "type": "string" } },
+        "stack": { "$ref": "#/$defs/filledLines" },
         "layout": {
           "type": "array",
-          "items": { "type": "object", "required": ["path", "purpose"], "properties": { "path": { "type": "string" }, "purpose": { "type": "string" } } }
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "purpose"],
+            "properties": { "path": { "$ref": "#/$defs/filledLine" }, "purpose": { "$ref": "#/$defs/line" } }
+          }
         },
-        "packageManager": { "type": ["string", "null"] },
-        "testFrameworks": { "type": "array", "items": { "type": "string" } },
-        "workspaces": { "type": "array", "items": { "type": "string" } },
-        "sourceFiles": { "type": "integer" },
-        "sensitive": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } }
+        "packageManager": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/filledLine" }] },
+        "testFrameworks": { "$ref": "#/$defs/filledLines" },
+        "workspaces": { "$ref": "#/$defs/filledLines" },
+        "sourceFiles": { "type": "integer", "minimum": 0 },
+        "sensitive": { "type": "object", "additionalProperties": { "$ref": "#/$defs/filledLines" } }
       }
     },
     "agents": {
@@ -34,27 +41,40 @@
     },
     "verification": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["rigor"],
       "properties": {
         "rigor": { "enum": ["light", "standard", "strict"] },
-        "fast": { "type": ["string", "null"], "pattern": "^[^\\r\\n]+$" },
-        "full": { "type": ["string", "null"], "pattern": "^[^\\r\\n]+$" },
-        "e2e": { "type": ["string", "null"], "pattern": "^[^\\r\\n]+$" }
+        "fast": { "$ref": "#/$defs/command" },
+        "full": { "$ref": "#/$defs/command" },
+        "e2e": { "$ref": "#/$defs/command" }
       }
     },
     "memory": { "enum": ["none", "decisions", "handoff"] },
-    "approvals": {
-      "type": "array",
-      "description": "Approval ids or custom one-line sentences.",
-      "items": { "type": "string" }
-    },
-    "rules": { "type": "array", "items": { "type": "string", "pattern": "^[^\\r\\n]+$" } },
+    "approvals": { "$ref": "#/$defs/filledLines", "description": "Approval ids (push, deploy, destructive, dependencies, migrations, secrets, ci, infra, payments, auth) or custom one-line sentences." },
+    "rules": { "$ref": "#/$defs/filledLines" },
     "overrides": {
       "type": "object",
       "propertyNames": { "enum": ["verify-change", "quiet-output", "exploration", "workspace-scope", "risk-areas", "harness-maintenance"] },
       "additionalProperties": { "type": "boolean" }
     },
-    "tooling": { "type": "object", "properties": { "cli": { "type": "string", "minLength": 1 } } },
-    "budget": { "type": "object", "properties": { "alwaysOnLines": { "type": "integer", "minimum": 20 } } }
+    "tooling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cli"],
+      "properties": { "cli": { "$ref": "#/$defs/filledLine", "description": "How generated text tells people to run the kit, e.g. `npx agent-harness` when it is a devDependency." } }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alwaysOnLines"],
+      "properties": { "alwaysOnLines": { "type": "integer", "minimum": 20 } }
+    }
+  },
+  "$defs": {
+    "line": { "type": "string", "pattern": "^[^\\r\\n]*$" },
+    "filledLine": { "type": "string", "pattern": "^[^\\r\\n]*\\S[^\\r\\n]*$" },
+    "filledLines": { "type": "array", "items": { "$ref": "#/$defs/filledLine" } },
+    "command": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/filledLine" }] }
   }
 }

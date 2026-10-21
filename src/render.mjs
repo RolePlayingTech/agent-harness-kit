@@ -27,7 +27,7 @@ function areaText(id, values) {
 }
 
 function approvalLine(id, sensitive) {
-  if (!(id in APPROVALS)) return id;
+  if (!Object.hasOwn(APPROVALS, id)) return id;
   return `${APPROVALS[id]}${areaText(id, sensitive?.[id])}`;
 }
 
@@ -38,7 +38,7 @@ function workspaceCommand(pm) {
 function template(name, vars) {
   const raw = normalizeText(readFileSync(join(TEMPLATES, 'skills', name, 'SKILL.md'), 'utf8'));
   return raw.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-    if (!(key in vars)) throw new Error(`Template ${name} uses unknown variable {{${key}}}.`);
+    if (!Object.hasOwn(vars, key)) throw new Error(`Template ${name} uses unknown variable {{${key}}}.`);
     return vars[key];
   });
 }

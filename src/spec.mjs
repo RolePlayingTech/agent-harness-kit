@@ -61,7 +61,7 @@ export function defaultAnswers(scan) {
   const hinted = [...new Set(scan.agentHints.map((h) => h.agent))];
   // Payments and auth code is edited routinely in apps that have it; asking every time is too heavy
   // as a default. They get a lighter "risk area" rule instead, and can be added as approvals deliberately.
-  const detectedApprovals = scan.sensitive.map((s) => s.id).filter((id) => id in APPROVALS && !RISK_AREAS.includes(id));
+  const detectedApprovals = scan.sensitive.map((s) => s.id).filter((id) => Object.hasOwn(APPROVALS, id) && !RISK_AREAS.includes(id));
   const approvals = ['push', 'deploy', 'destructive', ...(scan.stage === 'existing' ? ['dependencies'] : []), ...detectedApprovals];
   return {
     name: scan.project.name,
@@ -147,47 +147,104 @@ export function answersFromSpec(spec) {
   };
 }
 
+/**
+ * Field names each object in the spec may contain. Unknown fields are errors, so a typo such as
+ * "aproval" is reported instead of silently ignored. schema/spec.schema.json mirrors these rules;
+ * tests/spec.test.mjs keeps the two in step.
+ */
+export const SPEC_FIELDS = {
+  '': ['$schema', 'specVersion', 'project', 'agents', 'verification', 'memory', 'approvals', 'rules', 'overrides', 'tooling', 'budget'],
+  project: ['name', 'summary', 'stage', 'stack', 'layout', 'packageManager', 'testFrameworks', 'workspaces', 'sourceFiles', 'sensitive'],
+  'project.layout[]': ['path', 'purpose'],
+  verification: ['rigor', 'fast', 'full', 'e2e'],
+  tooling: ['cli'],
+  budget: ['alwaysOnLines'],
+};
+export const STAGES = ['new', 'existing'];
+
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const isStr = (v) => typeof v === 'string';
+const oneLine = (v) => isStr(v) && !/[\r\n]/.test(v);
+const filledLine = (v) => oneLine(v) && v.trim() !== '';
+const isKey = (table, v) => isStr(v) && Object.hasOwn(table, v);
+
 export function validateSpec(spec) {
   const errors = [];
   const err = (path, message) => errors.push({ path, message });
-  const isStr = (v) => typeof v === 'string';
-  const isStrArray = (v) => Array.isArray(v) && v.every(isStr);
-  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return [{ path: '', message: 'Spec must be a JSON object.' }];
+  const fields = (obj, at) => {
+    for (const k of Object.keys(obj)) {
+      if (!SPEC_FIELDS[at].includes(k)) err(at ? `${at.replace('[]', '')}.${k}` : k, `Unknown field. Allowed: ${SPEC_FIELDS[at].join(', ')}.`);
+    }
+  };
+  const lines = (v, path, { filled = true } = {}) => {
+    if (!Array.isArray(v)) return err(path, 'Must be an array of strings.');
+    v.forEach((item, i) => { if (!(filled ? filledLine(item) : oneLine(item))) err(`${path}[${i}]`, `Must be a ${filled ? 'non-empty ' : ''}single-line string.`); });
+  };
+
+  if (!isObj(spec)) return [{ path: '', message: 'Spec must be a JSON object.' }];
+  fields(spec, '');
+  if (spec.$schema !== undefined && !isStr(spec.$schema)) err('$schema', 'Must be a string.');
   if (spec.specVersion !== 1) err('specVersion', 'Must be 1.');
+
   const p = spec.project;
-  if (!p || typeof p !== 'object') err('project', 'Required object.');
+  if (!isObj(p)) err('project', 'Required object.');
   else {
-    if (!isStr(p.name) || !p.name.trim()) err('project.name', 'Required non-empty string.');
-    if (!isStr(p.summary)) err('project.summary', 'Required string (may be empty, but a one-sentence purpose helps every session).');
-    if (!['new', 'existing'].includes(p.stage)) err('project.stage', 'Must be "new" or "existing".');
-    if (!isStrArray(p.stack)) err('project.stack', 'Must be an array of strings.');
-    if (!Array.isArray(p.layout) || !p.layout.every((l) => l && isStr(l.path) && isStr(l.purpose))) err('project.layout', 'Must be an array of { path, purpose } strings.');
-    if (p.workspaces !== undefined && !isStrArray(p.workspaces)) err('project.workspaces', 'Must be an array of strings.');
-    if (p.testFrameworks !== undefined && !isStrArray(p.testFrameworks)) err('project.testFrameworks', 'Must be an array of strings.');
-    if (p.sourceFiles !== undefined && !Number.isInteger(p.sourceFiles)) err('project.sourceFiles', 'Must be an integer.');
-    if (p.sensitive !== undefined && (typeof p.sensitive !== 'object' || Array.isArray(p.sensitive) || !Object.values(p.sensitive).every(isStrArray))) err('project.sensitive', 'Must map ids to arrays of strings.');
-  }
-  if (!isStrArray(spec.agents) || !spec.agents.length) err('agents', `Choose at least one of: ${Object.keys(AGENTS).join(', ')}.`);
-  else for (const a of spec.agents) if (!(a in AGENTS)) err('agents', `Unknown agent "${a}". Allowed: ${Object.keys(AGENTS).join(', ')}.`);
-  const v = spec.verification;
-  if (!v || typeof v !== 'object') err('verification', 'Required object.');
-  else {
-    if (!(v.rigor in RIGOR)) err('verification.rigor', `Must be one of: ${Object.keys(RIGOR).join(', ')}.`);
-    for (const k of ['fast', 'full', 'e2e']) if (v[k] !== null && v[k] !== undefined && (!isStr(v[k]) || !v[k].trim() || /[\r\n]/.test(v[k]))) err(`verification.${k}`, 'Must be null or a single-line command.');
-  }
-  if (!(spec.memory in MEMORY)) err('memory', `Must be one of: ${Object.keys(MEMORY).join(', ')}.`);
-  if (!isStrArray(spec.approvals)) err('approvals', 'Must be an array of approval ids or custom sentences.');
-  if (!isStrArray(spec.rules)) err('rules', 'Must be an array of strings.');
-  else spec.rules.forEach((r, i) => { if (/[\r\n]/.test(r)) err(`rules[${i}]`, 'Each rule must be a single line.'); });
-  if (spec.overrides !== undefined) {
-    if (!spec.overrides || typeof spec.overrides !== 'object' || Array.isArray(spec.overrides)) err('overrides', 'Must be an object.');
-    else for (const [k, val] of Object.entries(spec.overrides)) {
-      if (!OVERRIDABLE_MODULES.includes(k)) err(`overrides.${k}`, `Not overridable. Allowed: ${OVERRIDABLE_MODULES.join(', ')}.`);
-      if (typeof val !== 'boolean') err(`overrides.${k}`, 'Must be true or false.');
+    fields(p, 'project');
+    if (!filledLine(p.name)) err('project.name', 'Required non-empty single-line string.');
+    if (!oneLine(p.summary)) err('project.summary', 'Required single-line string (may be empty, but a one-sentence purpose helps every session).');
+    if (!STAGES.includes(p.stage)) err('project.stage', `Must be one of: ${STAGES.join(', ')}.`);
+    lines(p.stack, 'project.stack');
+    if (!Array.isArray(p.layout)) err('project.layout', 'Must be an array of { path, purpose }.');
+    else p.layout.forEach((l, i) => {
+      if (!isObj(l)) return err(`project.layout[${i}]`, 'Must be an object { path, purpose }.');
+      fields(l, 'project.layout[]');
+      if (!filledLine(l.path)) err(`project.layout[${i}].path`, 'Required non-empty single-line string.');
+      if (!oneLine(l.purpose)) err(`project.layout[${i}].purpose`, 'Required single-line string.');
+    });
+    if (p.packageManager !== undefined && p.packageManager !== null && !filledLine(p.packageManager)) err('project.packageManager', 'Must be null or a non-empty string.');
+    for (const k of ['workspaces', 'testFrameworks']) if (p[k] !== undefined) lines(p[k], `project.${k}`);
+    if (p.sourceFiles !== undefined && !(Number.isInteger(p.sourceFiles) && p.sourceFiles >= 0)) err('project.sourceFiles', 'Must be a whole number.');
+    if (p.sensitive !== undefined) {
+      if (!isObj(p.sensitive)) err('project.sensitive', 'Must map area ids to arrays of strings.');
+      else for (const [k, val] of Object.entries(p.sensitive)) lines(val, `project.sensitive.${k}`);
     }
   }
-  if (spec.tooling !== undefined && (!spec.tooling || !isStr(spec.tooling.cli) || !spec.tooling.cli.trim())) err('tooling.cli', 'Must be a non-empty string.');
-  if (spec.budget !== undefined && (!spec.budget || !Number.isInteger(spec.budget.alwaysOnLines) || spec.budget.alwaysOnLines < 20)) err('budget.alwaysOnLines', 'Must be an integer >= 20.');
+
+  if (!Array.isArray(spec.agents) || !spec.agents.length) err('agents', `Choose at least one of: ${Object.keys(AGENTS).join(', ')}.`);
+  else for (const a of spec.agents) if (!isKey(AGENTS, a)) err('agents', `Unknown agent ${JSON.stringify(a)}. Allowed: ${Object.keys(AGENTS).join(', ')}.`);
+
+  const v = spec.verification;
+  if (!isObj(v)) err('verification', 'Required object.');
+  else {
+    fields(v, 'verification');
+    if (!isKey(RIGOR, v.rigor)) err('verification.rigor', `Must be one of: ${Object.keys(RIGOR).join(', ')}.`);
+    for (const k of ['fast', 'full', 'e2e']) if (v[k] !== null && v[k] !== undefined && !filledLine(v[k])) err(`verification.${k}`, 'Must be null or a single-line command.');
+  }
+  if (!isKey(MEMORY, spec.memory)) err('memory', `Must be one of: ${Object.keys(MEMORY).join(', ')}.`);
+  lines(spec.approvals, 'approvals');
+  lines(spec.rules, 'rules');
+
+  if (spec.overrides !== undefined) {
+    if (!isObj(spec.overrides)) err('overrides', 'Must be an object.');
+    else for (const [k, val] of Object.entries(spec.overrides)) {
+      if (!OVERRIDABLE_MODULES.includes(k)) err(`overrides.${k}`, `Not overridable. Allowed: ${OVERRIDABLE_MODULES.join(', ')}.`);
+      else if (typeof val !== 'boolean') err(`overrides.${k}`, 'Must be true or false.');
+    }
+  }
+  if (spec.tooling !== undefined) {
+    if (!isObj(spec.tooling)) err('tooling', 'Must be an object.');
+    else {
+      fields(spec.tooling, 'tooling');
+      if (!filledLine(spec.tooling.cli)) err('tooling.cli', 'Must be a non-empty single-line string.');
+    }
+  }
+  if (spec.budget !== undefined) {
+    if (!isObj(spec.budget)) err('budget', 'Must be an object.');
+    else {
+      fields(spec.budget, 'budget');
+      if (!Number.isInteger(spec.budget.alwaysOnLines) || spec.budget.alwaysOnLines < 20) err('budget.alwaysOnLines', 'Must be a whole number of at least 20.');
+    }
+  }
   return errors;
 }
 
@@ -198,7 +255,17 @@ export function loadSpec(root) {
   try { spec = JSON.parse(normalizeText(readFileSync(path, 'utf8'))); } catch (error) {
     return { spec: null, errors: [{ path: SPEC_PATH, message: `Invalid JSON: ${error.message}` }] };
   }
-  return { spec, errors: validateSpec(spec) };
+  const errors = validateSpec(spec);
+  if (errors.length) return { spec, errors };
+  return {
+    spec: {
+      ...spec,
+      overrides: spec.overrides ?? {},
+      tooling: spec.tooling ?? { cli: DEFAULT_CLI },
+      budget: spec.budget ?? { alwaysOnLines: 200 },
+    },
+    errors,
+  };
 }
 
 export function serializeSpec(spec) {

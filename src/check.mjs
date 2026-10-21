@@ -65,11 +65,11 @@ function checkCommand(root, command, scripts, deps, makeTargets) {
     let m;
     if ((m = /^npm\s+(?:run(?:-script)?\s+)?(test|start)(?=\s|$)/.exec(part)) || (m = /^npm\s+run(?:-script)?\s+(\S+)/.exec(part))) {
       if (!scripts) problems.push({ level: 'error', message: `\`${part}\` needs package.json, which is missing.` });
-      else if (!(m[1] in scripts)) problems.push({ level: 'error', message: `\`${part}\`: package.json has no "${m[1]}" script.` });
+      else if (!Object.hasOwn(scripts, m[1])) problems.push({ level: 'error', message: `\`${part}\`: package.json has no "${m[1]}" script.` });
     } else if ((m = /^(?:pnpm|yarn|bun\s+run|bun)\s+(?:run\s+)?([^\s-][^\s]*)/.exec(part))) {
       if (PM_BUILTINS.has(m[1])) continue;
       if (!scripts) problems.push({ level: 'error', message: `\`${part}\` needs package.json, which is missing.` });
-      else if (!(m[1] in scripts)) problems.push({ level: 'error', message: `\`${part}\`: package.json has no "${m[1]}" script.` });
+      else if (!Object.hasOwn(scripts, m[1])) problems.push({ level: 'error', message: `\`${part}\`: package.json has no "${m[1]}" script.` });
     } else if ((m = /^npx\s+(?:--no-install\s+)?([^\s@]+)/.exec(part))) {
       const pkgs = NPX_PACKAGES[m[1]] || [m[1]];
       const local = existsSync(join(root, 'node_modules', '.bin', m[1])) || existsSync(join(root, 'node_modules', '.bin', `${m[1]}.cmd`));

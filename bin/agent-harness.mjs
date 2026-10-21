@@ -100,7 +100,7 @@ function print(obj, text) {
 if (flags.version) { console.log(KIT_VERSION); process.exit(0); }
 if (flags.help || !command || command === 'help') { console.log(help()); process.exit(errors.length ? 1 : 0); }
 if (errors.length) fail(`${errors.join(' ')} Run \`agent-harness help\`.`);
-if (!(command in COMMANDS)) fail(`Unknown command "${command}". Commands: ${Object.keys(COMMANDS).filter((c) => c !== 'help').join(', ')}.`);
+if (!Object.hasOwn(COMMANDS, command)) fail(`Unknown command "${command}". Commands: ${Object.keys(COMMANDS).filter((c) => c !== 'help').join(', ')}.`);
 for (const key of Object.keys(flags)) {
   const used = Array.isArray(flags[key]) ? flags[key].length > 0 : flags[key] !== undefined;
   if (used && !COMMANDS[command].flags.includes(key)) fail(`--${key} does not apply to ${command}.`);

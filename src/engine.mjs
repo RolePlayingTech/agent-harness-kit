@@ -115,7 +115,7 @@ export function deriveModules(spec) {
   const approvals = spec.approvals || [];
   modules.push(module('approvals', 'Ask-before list (advisory)', approvals.length > 0,
     approvals.length
-      ? `Actions with consequences outside the working tree, or areas detected as sensitive, need your approval: ${approvals.map((a) => (a in APPROVALS ? a : 'custom')).join(', ')}.`
+      ? `Actions with consequences outside the working tree, or areas detected as sensitive, need your approval: ${approvals.map((a) => (Object.hasOwn(APPROVALS, a) ? a : 'custom')).join(', ')}.`
       : 'No approvals selected.',
     'These are instructions, not permissions. A model can ignore them; enforce the ones that matter with branch protection, CI or your tool\'s permission settings.',
     approvals.length ? ['AGENTS.md'] : []));
@@ -181,7 +181,7 @@ export function deriveModules(spec) {
 
 export function enforcementHints(spec) {
   const hints = (spec.approvals || []).map((id) => ({
-    approval: id in APPROVALS ? APPROVALS[id] : id,
+    approval: Object.hasOwn(APPROVALS, id) ? APPROVALS[id] : id,
     hint: ENFORCEMENT_HINTS[id] || 'Decide where this can be enforced (code review, CI, permissions); until then it is advisory.',
   }));
   const tools = spec.agents.map((a) => AGENT_ENFORCEMENT[a]).filter(Boolean);
