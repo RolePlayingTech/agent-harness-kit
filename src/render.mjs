@@ -200,11 +200,20 @@ export function renderOutputs(spec) {
   return { modules, blocks, files, seeds, newFileHeaders: { 'AGENTS.md': `# ${spec.project.name}\n\n`, 'CLAUDE.md': '' } };
 }
 
-/** All paths the renderer could ever produce, for validating an untrusted lock file. */
-export function possibleOutputPaths() {
-  const paths = new Set(['AGENTS.md', 'CLAUDE.md', DECISIONS_PATH, HANDOFF_PATH]);
+/** Every path the renderer may own, with its exact lifecycle kind. The lock is untrusted. */
+export function possibleOutputKinds() {
+  const kinds = new Map([
+    ['AGENTS.md', 'block'],
+    ['CLAUDE.md', 'block'],
+    [DECISIONS_PATH, 'seed'],
+    [HANDOFF_PATH, 'seed'],
+  ]);
   for (const dir of ['.agents/skills', '.claude/skills']) {
-    for (const name of ['verify-change', 'session-handoff', 'harness-maintenance']) paths.add(`${dir}/${name}/SKILL.md`);
+    for (const name of ['verify-change', 'session-handoff', 'harness-maintenance']) kinds.set(`${dir}/${name}/SKILL.md`, 'file');
   }
-  return paths;
+  return kinds;
+}
+
+export function possibleOutputPaths() {
+  return new Set(possibleOutputKinds().keys());
 }
