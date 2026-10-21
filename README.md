@@ -1,181 +1,484 @@
-# Universal AI Agent Harness Kit (`agent-harness-kit` v2.0)
+# Agent Harness Kit
 
-[![Agent Skills Standard](https://img.shields.io/badge/Standard-AGENTS.md_%26_SKILL.md-10b981)](https://agents.md)
-[![Version](https://img.shields.io/badge/Version-2.0.0-3b82f6)](./package.json)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero_(Node_20%2B)-8b5cf6)](./package.json)
-[![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b)](./LICENSE)
+**Design, generate and check the working environment of your AI coding agent, built from your repository's real commands and your own decisions.**
 
-> **Interactive Dual-Mode (Greenfield & Brownfield) AI Agent Harness Architect, Testing-vs-Context Trade-off Advisor, and Verification CLI.**
-> Built for **Claude Code, Cursor, GitHub Copilot, OpenAI Codex, Windsurf, and Google Antigravity**.
->
-> 🇵🇱 **[Pełny Podręcznik po Polsku (`docs/GUIDE_PL.md`)](./docs/GUIDE_PL.md)** | 🇬🇧 **[Complete English Guide (`docs/GUIDE_EN.md`)](./docs/GUIDE_EN.md)** | 📊 **[Testing vs. Context Playbook (`docs/TESTING_AND_CONTEXT_PLAYBOOK.md`)](./docs/TESTING_AND_CONTEXT_PLAYBOOK.md)**
+A coding agent is a model plus a *harness*: the instructions it reads every session, the procedures it loads on demand, the commands it uses to check its own work, what it remembers between sessions and what it must not do without asking. Agent Harness Kit helps you decide what that harness should contain for *your* project, generates the files each tool actually reads, explains every choice, and checks that the result stays consistent as the project changes.
 
----
+It works with **OpenAI Codex**, **Claude Code**, **Cursor** and any other tool that reads `AGENTS.md`. It is a single Node.js CLI with no runtime dependencies.
 
-## Why v2.0? Guiding the Developer "By the Hand" Across Two Distinct Paths
+## Quick start
 
-Most AI prompt templates make one of two fatal mistakes:
-1. **In a brand-new empty repository (Greenfield):** They ask you for "exact linter flags and test commands" before a single line of code or technology stack even exists.
-2. **In an existing codebase (Brownfield):** They ask you "what language and framework do you use?" instead of reading `package.json`, `pyproject.toml`, or `.github/workflows` first — or worse, they silently overwrite your existing `AGENTS.md` and `SKILL.md` files.
+You need Node.js 20 or newer and git. Commit or stash your work first, then run this in the repository root:
 
-**`agent-harness-kit` v2.0** solves both problems with a **Dual-Mode Architecture**, an explicit **Testing Depth vs. Context Token Trade-off Advisor**, and a **non-destructive CLI lifecycle manager**.
-
-```
-                      ┌───────────────────────────────────────┐
-                      │   agent-harness inspect / init / AI   │
-                      └───────────────────┬───────────────────┘
-                                          │
-                  ┌───────────────────────┴───────────────────────┐
-                  ▼                                               ▼
-   ┌──────────────────────────────┐                ┌──────────────────────────────┐
-   │  PATH A: GREENFIELD WIZARD   │                │ PATH B: BROWNFIELD ONBOARDER │
-   │   (Empty / Idea-Stage Repo)  │                │  (Existing Codebase / Mono)  │
-   ├──────────────────────────────┤                ├──────────────────────────────┤
-   │ 1. Scope MVP & Non-Goals     │                │ 1. Silent Repo Scan FIRST    │
-   │ 2. Compare 2-3 Tech Stacks   │                │ 2. Present Grounded Evidence │
-   │ 3. Pick Testing/Token Profile│                │ 3. Discuss Unknowns & Risks  │
-   │ 4. Generate Blueprint + ADR  │                │ 4. Non-Destructive Install   │
-   └──────────────┬───────────────┘                └──────────────┬───────────────┘
-                  └───────────────────────┬───────────────────────┘
-                                          ▼
-                  ┌───────────────────────────────────────────────┐
-                  │  4 TESTING-VS-CONTEXT TRADE-OFF PROFILES      │
-                  │  • fast-prototype    (~300-600 tok/turn)      │
-                  │  • smart-tiered      (~800-1,500 tok/turn) ★  │
-                  │  • isolated-verifier (~500 tok main thread)   │
-                  │  • mission-critical  (~3,000-8,000 tok/turn)  │
-                  └───────────────────────────────────────────────┘
+```sh
+npx github:RolePlayingTech/agent-harness-kit design            # scans the repo, asks what it cannot find out, saves .harness/spec.json
+npx github:RolePlayingTech/agent-harness-kit build --dry-run   # shows every file it would write, as a diff
+npx github:RolePlayingTech/agent-harness-kit build             # writes AGENTS.md (and CLAUDE.md, skills) as planned
+npx github:RolePlayingTech/agent-harness-kit check             # is the harness consistent with the repo and the spec?
 ```
 
+`design` is an interview in your terminal: each question shows what the scan found and why it matters, and Enter accepts the proposed value. It changes nothing but `.harness/spec.json`; `build` writes the rest. Commit both, and the next person or agent gets the same harness. To use a fixed version instead of the latest commit, see [Installing and pinning a version](#installing-and-pinning-a-version).
+
+> Built for the MUMRO Academy lesson [AI Agent Harness Engineering](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/) (Polish), which explains the reasoning behind every part of this tool.
+
 ---
 
-## Quick Start (30 Seconds)
+## Why not just ask the agent to write AGENTS.md?
 
-### 1. Run via `npx` (Zero Install Required)
+You can, and for a small repository that is often enough. The result is usually plausible and generic: it lists `npm run typecheck` even when that script doesn't exist, adds rules nobody asked for, can't tell you why a section is there, and drifts as soon as the project changes. This kit takes a different approach:
 
-```bash
-# 1. Inspect any folder (detects Greenfield vs. Brownfield, stack, scripts, risks)
-npx github:RolePlayingTech/agent-harness-kit inspect .
+| | Asking an agent for AGENTS.md | Agent Harness Kit |
+| --- | --- | --- |
+| Commands | Often guessed from conventions | Read from manifests, labelled *detected* or *inferred*; `check` fails if a script doesn't exist |
+| Decisions | Hidden in prose | Recorded in `.harness/spec.json`: reviewable, diffable, re-runnable |
+| Reasons | Not recorded | `explain` gives the reason and cost for every part that is in, **and every part left out** |
+| Size | Tends to grow | Each section appears only when a rule fires; `check` warns when always-loaded text passes your budget |
+| Tools | One file, one tool | One spec, files where each tool looks: `AGENTS.md`, a `CLAUDE.md` import, skills in `.agents/skills` or `.claude/skills` |
+| Updates | Regenerate and hope | Managed blocks keep your own notes; hand edits inside generated regions stop the build instead of being overwritten |
+| Guardrails | "NEVER push to main" presented as safety | Labelled as advisory, with concrete ways to enforce each one |
 
-# 2. Preview the recommended interview path & Testing-vs-Context trade-off matrix
-npx github:RolePlayingTech/agent-harness-kit plan .
+The agent is still useful here: it can run the design conversation for you (see [Let your agent drive](#let-your-agent-drive)). The difference is that the structure comes from deterministic rules applied to evidence, and the agent's job is to get the decisions right with you.
 
-# 3. Safely install the 6 modular skills + generate harness & blueprint files
-npx github:RolePlayingTech/agent-harness-kit init . --profile smart-tiered --blueprint
+**When you don't need it:** a throwaway script, or a repository where a ten-line hand-written `AGENTS.md` already says everything. The kit pays off when the project has real check commands, sensitive areas, more than one tool, or a harness that will change over time.
 
-# 4. Run strict deterministic verification (CI-ready exit codes)
-npx github:RolePlayingTech/agent-harness-kit verify . --strict
+---
+
+## Walkthrough: a Next.js app worked on with Codex
+
+> "I'm developing a Next.js app and I use Codex. I care about code quality, avoiding regressions and keeping decisions between sessions. I don't want a heavy process that runs a dozen test suites after every small change."
+
+The repository is [`examples/nextjs-codex/project`](examples/nextjs-codex/project): Next.js, TypeScript, Prisma migrations, Stripe, next-auth, Vitest and Playwright.
+
+### 1. Scan (read-only, never executes project code)
+
+<!-- run: scan examples/nextjs-codex/project -->
+```text
+examples/nextjs-codex/project
+  Existing project: Node.js, TypeScript, Next.js, React, Prisma
+  Source files: 1
+  fast  npm run typecheck  [detected: package.json#scripts.typecheck]
+  fast  npm run lint  [detected: package.json#scripts.lint]
+  full  npm test  [detected: package.json#scripts.test]
+  e2e   npm run test:e2e  [detected: package.json#scripts.test:e2e]
+  build npm run build  [detected: package.json#scripts.build]
+  Sensitive: Database migrations [prisma/migrations]
+  Sensitive: Payments code [package.json (stripe)]
+  Sensitive: Authentication code [package.json (next-auth)]
+```
+<!-- /run -->
+
+Everything the kit can read, it doesn't ask about. What remains are decisions only you can make.
+
+### 2. Design
+
+Run `design` in a terminal and answer the questions; Enter accepts the value the scan proposed. Each question shows why it matters and what was found. The same answers can be given as a JSON file (this is what the example uses, [`answers.json`](examples/nextjs-codex/answers.json)) or as flags:
+
+```sh
+npx github:RolePlayingTech/agent-harness-kit design --yes --answers answers.json
+# or:
+npx github:RolePlayingTech/agent-harness-kit design --yes \
+  --set agents=codex --set rigor=standard --set memory=decisions \
+  --rule "Money is stored as integer cents; never use floating point for amounts."
 ```
 
-### 2. Run Interactive Hand-Holding Mode with Your AI Agent
+`--rule` values that contain `"` are safer in the answers file. On Windows, Node re-parses the command line, so an inner quote can split the value and the leftover words are treated as a directory.
 
-Once installed, open your AI coding agent (Claude Code, Cursor, Copilot, Windsurf, Codex, Antigravity) and prompt:
+The user's sentence maps to: *standard* rigor (fast check while working, full suite once before done; not *strict*), *decisions* memory (a decision log, not a session handoff), Codex only. Payments and auth are detected, but asking permission before every edit there would be the heavy process the user rejected, so they get a lighter "extra care" rule instead. Migrations go on the ask-before list.
 
-> 🇬🇧 **"Use the `harness-architect` skill. Inspect this repository and guide me step-by-step through our architecture, testing-vs-context trade-offs, and harness configuration."**
->
-> 🇵🇱 **„Użyj skilla `harness-architect`. Przeskanuj to repozytorium i poprowadź mnie za rączkę przez architekturę, wybór profilu testów względem zużycia kontekstu oraz konfigurację uprzęży.”**
+### 3. Explain
+
+`explain` prints why each part is in or out and what it costs:
+
+<details>
+<summary>Full <code>explain</code> output</summary>
+
+<!-- embed: examples/nextjs-codex/explain.txt -->
+```text
+Harness for invoice-hub (existing project; Node.js, TypeScript, Next.js, React, Prisma)
+Agents: OpenAI Codex
+
+Included
+  [on]  Shared project instructions (AGENTS.md)
+        Why: Every selected agent reads AGENTS.md (Claude Code through an import), so it is the
+        single source of truth for purpose, commands and boundaries.
+        Cost: Always loaded: every line costs context in every session, so it holds only what
+        applies to most tasks.
+        Files: AGENTS.md
+  [on]  Definition of done (standard)
+        Why: Standard rigor: catch regressions before a task is reported done, without running
+        the whole suite after every edit.
+        Cost: A regression found by the full suite surfaces at the end of a task rather than
+        right after the edit that caused it.
+        Files: AGENTS.md
+  [on]  Concise test output
+        Why: Full and end-to-end runs can print thousands of lines; reading only failures keeps
+        the session focused.
+        Cost: The first failure report is less detailed; the agent re-runs the single failing
+        test verbosely when it needs more.
+        Files: AGENTS.md
+  [on]  Decision log (docs/agent/decisions.md)
+        Why: You want agreements to survive between sessions. A short log the agent reads before
+        structural changes is cheaper than re-explaining them.
+        Cost: Needs pruning: superseded entries mislead. Entries are written by the agent, so
+        review them like code.
+        Files: docs/agent/decisions.md
+  [on]  Ask-before list (advisory)
+        Why: Actions with consequences outside the working tree, or areas detected as sensitive,
+        need your approval: push, deploy, destructive, dependencies, migrations.
+        Cost: These are instructions, not permissions. A model can ignore them; enforce the ones
+        that matter with branch protection, CI or your tool's permission settings.
+        Files: AGENTS.md
+  [on]  Extra care in payments/auth code
+        Why: Detected payments (stripe) and auth (next-auth). Mistakes there are costly, so
+        changes get the full checks and are called out in the report, without asking permission
+        for every edit.
+        Cost: Slightly longer tasks when those areas change. If every change there needs your
+        sign-off, add the area to approvals instead.
+        Files: AGENTS.md
+  [on]  Project rules
+        Why: Conventions you named that the agent cannot infer from the code.
+        Cost: Each rule is loaded every session; keep only rules that change behavior.
+        Files: AGENTS.md
+  [on]  Skill: harness-maintenance
+        Why: Keeps changes to the harness going through .harness/spec.json, so rebuilding and
+        checking stay meaningful as the project evolves.
+        Cost: One more skill description in the agent's skill list (one line until used).
+        Files: .agents/skills/harness-maintenance/SKILL.md
+
+Left out
+  [off] Claude Code entry point (CLAUDE.md → @AGENTS.md)
+        Why not: Claude Code is not among the selected agents.
+  [off] Skill: verify-change (test-first and review procedure)
+        Why not: Not needed below strict rigor; the definition of done in AGENTS.md is enough.
+  [off] Session handoff (note + skill)
+        Why not: Not selected; tasks are expected to fit in one session, or git history is
+        enough to resume.
+  [off] Per-package checks in the monorepo
+        Why not: Not a multi-package workspace.
+  [off] Exploration discipline for a large codebase
+        Why not: About 1 source files: small enough that the agent can read what it needs
+        directly.
+  [off] Stack decision pending
+        Why not: The stack is known, so commands and layout come from the project itself.
+
+Instructions are not enforcement
+  Everything above is text the model reads. It shapes behavior but cannot prevent an action.
+  Enforce what matters outside the model:
+  - Pushing, merging or force-pushing to shared branches: Protect the default branch in your Git
+  host (require pull requests and reviews).
+  - Deploying, releasing or publishing: Keep deploy credentials out of the agent environment;
+  deploy from CI with a manual approval step.
+  - Deleting files, data or branches beyond what the task requires: Work on a branch or worktree
+  so deletions are recoverable from git.
+  - Adding, removing or upgrading dependencies: Review lockfile changes in pull requests; CI can
+  fail on unexpected lockfile diffs.
+  - Creating, editing or running database migrations: Require review of migration paths with
+  CODEOWNERS; run migrations only from CI.
+  - Codex: sandbox mode and approval policy in your Codex configuration.
+
+Where each agent reads it
+  - OpenAI Codex: AGENTS.md and .agents/skills/
+```
+<!-- /embed -->
+
+</details>
+
+### 4. Build
+
+`build --dry-run` shows a unified diff of every file it would touch; `build` writes them. This is the complete `AGENTS.md` generated for the example:
+
+<!-- embed: examples/nextjs-codex/expected/AGENTS.md -->
+```markdown
+# invoice-hub
+
+<!-- agent-harness:begin -->
+## Purpose
+Invoicing app for small agencies: clients, invoices, Stripe payments and reminders.
+
+## Stack and layout
+- Stack: Node.js, TypeScript, Next.js, React, Prisma
+- `src/app/`: App Router routes and layouts
+- `prisma/`: database schema and migrations
+
+## Commands
+- Fast check, after each meaningful change: `npm run typecheck && npm run lint`
+- Full check, once before reporting a task done: `npm test`
+- End-to-end, before done when a user-facing flow changed: `npm run test:e2e`
+
+## Definition of done
+- Run the fast check after each meaningful change, not only at the end.
+- Before reporting done, run the full check once, plus end-to-end when a user-facing flow changed.
+- When you change behavior that tests already cover, update or add a test in the same change.
+- Changes touching payments (code using `stripe`) or auth (code using `next-auth`): run the full check and, if a flow changed, end-to-end before done, and list those changes separately in your report.
+- Report which checks you ran and their result. Never describe a check you did not run, or one that failed, as passing.
+- If the same check still fails after three fix attempts, stop. Report what you tried and what you suspect, and ask how to proceed.
+
+## Ask before
+- Pushing, merging or force-pushing to shared branches
+- Deploying, releasing or publishing
+- Deleting files, data or branches beyond what the task requires
+- Adding, removing or upgrading dependencies
+- Creating, editing or running database migrations (`prisma/migrations`)
+
+## Project rules
+- Money is stored as integer cents; never use floating point for amounts.
+- Server Components by default; add "use client" only for interactive leaves.
+
+## Memory
+- Before changing architecture, conventions or dependencies, read `docs/agent/decisions.md`. When you and the user settle something that should outlast the task, add an entry there.
+
+## Working with context
+- Search (for example `rg`) before opening files, and open large files by line range.
+- Run long suites with concise output and read only the failures (Vitest `--reporter=dot`, Playwright `--reporter=line`; through package scripts, pass flags after `--`). Re-run a single failing test verbosely when you need detail; do not paste whole logs.
+
+## Skills
+- `harness-maintenance` (`.agents/skills/harness-maintenance/SKILL.md`): when the user wants to change how you work, or the same problem has happened twice.
+
+## About this file
+Generated by agent-harness-kit from `.harness/spec.json`. Do not edit between the agent-harness markers: change the spec and run `npx github:RolePlayingTech/agent-harness-kit build`. Notes outside the markers are preserved.
+<!-- agent-harness:end -->
+```
+<!-- /embed -->
+
+Notice what is *not* there: no test-first ceremony, no subagent instructions for a one-file project, no session handoff, no generic advice the model already follows. The full output is in [`examples/nextjs-codex/expected`](examples/nextjs-codex/expected): this file, one skill, a seeded decision log, the spec and the lock.
+
+### 5. Check, now and in CI
+
+```sh
+npx github:RolePlayingTech/agent-harness-kit check        # static: drift, scripts, references, skills, size
+npx github:RolePlayingTech/agent-harness-kit check --run  # also runs the fast, full and e2e commands once
+```
+
+`check` fails when the spec and the files disagree, when a configured `npm run` script doesn't exist, when `CLAUDE.md` imports a missing file or when a skill's frontmatter is invalid. It warns about dead path references, duplicated commands in hand-written notes, and always-loaded text above your budget. Commands run only with `--run`. That flag prints the commands, the directory they will run in, and a reminder that they execute with your permissions; only use it on a repository you trust, as with `npm test`.
 
 ---
 
-## The 6 Modular Skills (`skills/*/SKILL.md`)
+## A new project with no code yet
 
-Instead of stuffing 5,000 tokens of rules into a single bloated root file that taxes every turn, `agent-harness-kit` keeps `AGENTS.md` under **80 lines** and loads specialized protocols **on demand**:
+The kit doesn't pick your stack or scaffold an app. For an empty directory it produces a harness that is honest about the gaps: no invented commands, a first task to decide the stack with you, and light rigor until there is something to test. Here with Claude Code and Cursor and a session handoff ([answers](examples/new-project-claude/answers.json)):
 
-| Skill Directory | Role & Activation Trigger | Est. On-Demand Tokens |
-| :--- | :--- | :---: |
-| [`skills/harness-architect`](./skills/harness-architect/SKILL.md) | **Master Dual-Mode Router:** Detects Path A (Greenfield) vs. Path B (Brownfield) and orchestrates the guided interview. | ~1,600 |
-| [`skills/greenfield-advisor`](./skills/greenfield-advisor/SKILL.md) | **Path A (New Repo):** Defines MVP boundaries & Non-Goals, compares 2–3 tech stacks, and writes `PROJECT_BRIEF.md`, `ARCHITECTURE.md`, ADR, and `ROADMAP.md`. | ~930 |
-| [`skills/brownfield-onboarder`](./skills/brownfield-onboarder/SKILL.md) | **Path B (Existing Repo):** Performs silent workspace reconnaissance first, presents grounded evidence, and asks only about fragile zones and trade-offs. | ~860 |
-| [`skills/testing-tradeoffs`](./skills/testing-tradeoffs/SKILL.md) | **Testing vs. Context Advisor:** Helps the user choose between `fast-prototype`, `smart-tiered`, `isolated-verifier`, and `mission-critical`. | ~1,030 |
-| [`skills/context-hygiene`](./skills/context-hygiene/SKILL.md) | **Context RAM & 7 Crisis Playbooks:** Enforces the 60% Context Ceiling, subagent isolation, and recovery from log floods, poisoning, and long-thread drift. | ~1,120 |
-| [`skills/verification-loop`](./skills/verification-loop/SKILL.md) | **Default-FAIL Evaluator & 3-Strike Circuit Breaker:** Prevents infinite repair loops and requires deterministic command proof before marking tasks `verified`. | ~900 |
-| [`skills/recursive-refiner`](./skills/recursive-refiner/SKILL.md) | **Google Research `Harness²` Recursive Refiner (`c1..c8`):** Evolves the harness via Task-Level (`Propose → Probe → Compose`) and Harnessing-Level (`Experience Reflector`) recursion (arXiv:2610.14224). | ~780 |
+<details>
+<summary>Generated <code>AGENTS.md</code> for an empty directory</summary>
 
----
+<!-- embed: examples/new-project-claude/expected/AGENTS.md -->
+```markdown
+# habit-garden
 
-## The Testing Depth vs. Context Token Trade-Off Matrix
+<!-- agent-harness:begin -->
+## Purpose
+Offline-first habit tracker for students; a small web app first, mobile later.
 
-More tests mean higher code safety — but running verbose E2E suites in the main chat after every edit floods the context window and burns tokens. You choose the exact profile for your project stage:
+## Stack and layout
+- Stack: not chosen yet. Before writing application code, agree on the stack with the user, record it in the decision log if there is one, and ask them to re-run `npx github:RolePlayingTech/agent-harness-kit design` so real check commands get wired in.
 
-| Profile (`--profile`) | Inner Loop (Every Edit) | Outer Gate (Before Completion) | Est. Token Tax / Turn | Best For |
-| :--- | :--- | :--- | :--- | :--- |
-| **`fast-prototype`** | Fast typecheck / syntax only | Build check on demand | **~300–600 tokens** | Hackathons, weekend PoCs, UI spikes |
-| **`smart-tiered`** *(Default)* | Typecheck + 1 targeted unit test for touched file | Full build + integration/E2E suite once before commit | **~800–1,500 tokens** | **90% of production engineering projects** |
-| **`isolated-verifier`** | Fast typecheck in main session | Heavy E2E / test suite delegated to an isolated subagent returning `<200 words` | **~500 tokens in main chat** | Apps with noisy Playwright, Cypress, or Docker logs |
-| **`mission-critical`** | Typecheck + lint + unit suite + coverage | Full E2E + security audit + schema validation | **~3,000–8,000 tokens** | Payments, auth, billing, DB migrations |
+## Commands
+- No check commands are configured yet. Until they exist, state explicitly which behavior you could not verify.
 
----
+## Definition of done
+- Before reporting done, run whatever check exists, or say that nothing could be run.
+- Report which checks you ran and their result. Never describe a check you did not run, or one that failed, as passing.
+- If the same check still fails after three fix attempts, stop. Report what you tried and what you suspect, and ask how to proceed.
 
-## Complete CLI Reference (`agent-harness`)
+## Ask before
+- Pushing, merging or force-pushing to shared branches
+- Deploying, releasing or publishing
+- Deleting files, data or branches beyond what the task requires
 
-| Command | Flags | Behavior & Exit Code Contract |
-| :--- | :--- | :--- |
-| `agent-harness inspect [dir]` | `--json` | **Read-only.** Detects `greenfield`, `brownfield`, or `monorepo`, languages, frameworks, scripts, CI, and risks. Never modifies files. |
-| `agent-harness plan [dir]` | `--json` | **Read-only.** Outputs the recommended interview path (Path A vs. Path B), stack/testing trade-off matrix, and tailored questions. |
-| `agent-harness init [dir]` | `--mode auto\|greenfield\|brownfield`<br>`--profile <id>`<br>`--policy strict\|balanced\|expansive`<br>`--security <tier>`<br>`--adapters claude,cursor,copilot,windsurf`<br>`--blueprint`<br>`--dry-run` `--force` | **Safe & Non-Destructive by default.** Installs skills to `.agents/skills/`, creates `AGENTS.md`, `HANDOFF.md`, `feature_list.json` (initialized as `pending`), optional `docs/` blueprint, and `.agents/harness-manifest.json` with SHA-256 checksums. Preserves existing user files unless `--force` is passed. |
-| `agent-harness verify [dir]` | `--strict` `--policy <id>` `--json` | **Deterministic Gate.** Validates root `AGENTS.md` existence & line budget, real YAML frontmatter & schema on all `SKILL.md` files, referenced file paths, `package.json` scripts, and `feature_list.json` Default-FAIL integrity. Exits `1` on failure. |
-| `agent-harness audit [dir]` | `--policy <id>` `--json` | **Advisory Report.** Calculates Always-On vs. On-Demand token tax and architectural drift warnings. |
-| `agent-harness doctor [dir]` | `--json` | **Diagnostic Guide.** Runs verification and outputs exact remediation commands for every error or warning. |
-| `agent-harness autotrigger [dir]` | `--json` | **Harness² Dead-Weight Skill Repair.** Ensures every `.agents/skills/<name>/SKILL.md` is explicitly named with a trigger condition in `AGENTS.md` (respecting the `8,000-char` Always-On cap). |
-| `agent-harness update [dir]` | `--dry-run` `--force` | Updates only unmodified managed skill files by comparing current SHA-256 hashes against `.agents/harness-manifest.json`. |
-| `agent-harness uninstall [dir]` | `--dry-run` `--force` | Removes unmodified harness files tracked in `.agents/harness-manifest.json` while preserving any user-customized files. |
+## Memory
+- Before changing architecture, conventions or dependencies, read `docs/agent/decisions.md`. When you and the user settle something that should outlast the task, add an entry there.
+- Work that spans sessions: use the `session-handoff` skill. Read `docs/agent/handoff.md` when you start and update it before you stop.
 
----
+## Working with context
+- Search (for example `rg`) before opening files, and open large files by line range.
 
-## Multi-Tool Compatibility Matrix (`--adapters`)
+## Skills
+- `session-handoff` (`.claude/skills/session-handoff/SKILL.md`): at the start and end of a session on unfinished work.
+- `harness-maintenance` (`.claude/skills/harness-maintenance/SKILL.md`): when the user wants to change how you work, or the same problem has happened twice.
 
-| AI Coding Tool | Native Discovery File | Adapter Flag | How It Works |
-| :--- | :--- | :--- | :--- |
-| **Codex / OpenCode / Antigravity / Zed** | `AGENTS.md` + `.agents/skills/*/SKILL.md` | *(Default)* | Native `AGENTS.md` & Agent Skills discovery |
-| **Anthropic Claude Code** | `CLAUDE.md` | `--adapters claude` | Generates lightweight `@AGENTS.md` import bridge |
-| **Cursor** | `.cursor/rules/00-harness.mdc` | `--adapters cursor` | Generates MDC rule pointing to `AGENTS.md` & `.agents/skills/` |
-| **GitHub Copilot** | `.github/copilot-instructions.md` | `--adapters copilot` | Bridges Copilot workspace instructions to `AGENTS.md` |
-| **Windsurf** | `.windsurfrules` | `--adapters windsurf` | Bridges Windsurf rules to `AGENTS.md` |
+## About this file
+Generated by agent-harness-kit from `.harness/spec.json`. Do not edit between the agent-harness markers: change the spec and run `npx github:RolePlayingTech/agent-harness-kit build`. Notes outside the markers are preserved.
+<!-- agent-harness:end -->
+```
+<!-- /embed -->
+
+</details>
+
+`CLAUDE.md` contains only `@AGENTS.md` inside a managed block, so Claude Code and Cursor read the same instructions. Skills go to `.claude/skills/` only: Claude Code reads nothing else, and Cursor reads that directory too, so there is no duplicate copy. When you have chosen a stack, run `design` again and the real commands are wired in.
 
 ---
 
-## 🇵🇱 Podsumowanie po Polsku (PL)
+## Let your agent drive
 
-**`agent-harness-kit` v2.0** to kompletny zestaw narzędzi i skilli prowadzący programistę **za rączkę** w dwóch trybach:
-1. **Ścieżka A (Nowy Projekt / Greenfield):** Gdy uruchamiasz skilla w pustym folderze, agent nie pyta o nieistniejący kod — pomaga Ci zdefiniować MVP oraz *Non-Goals*, porównuje 2–3 stosy technologiczne (koszt, szybkość, czytelność dla AI), dobiera profil testów i generuje pełny blueprint (`docs/PROJECT_BRIEF.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `feature_list.json`).
-2. **Ścieżka B (Istniejący Projekt / Brownfield):** Gdy uruchamiasz skilla na działającym repozytorium, agent **najpierw po cichu skanuje pliki projektu**, prezentuje wykryte technologie i ryzyka, a następnie rozmawia z Tobą o kompromisach (np. ile testów uruchamiać, żeby nie spalić okna kontekstowego i tokenów).
+Any agent that can run shell commands can conduct the design conversation in your language:
 
-👉 Przeczytaj pełny przewodnik krok po kroku w pliku **[`docs/GUIDE_PL.md`](./docs/GUIDE_PL.md)**.
+> Run `npx github:RolePlayingTech/agent-harness-kit design --agent` and follow its instructions to set up the agent harness for this repository with me.
+
+`design --agent` prints the [`harness-designer`](skills/harness-designer/SKILL.md) protocol. The agent scans the repository, reads any existing instruction files, asks only what the scan could not answer (`design --questions --json` gives it the questions, evidence and defaults), maps your free-form answers to spec values, writes the spec with `design --set ... --yes`, shows you `explain` and the `build --dry-run` diff, and builds only after you agree. It never edits generated files by hand. You can also copy that skill into your personal skills directory to have it available everywhere.
 
 ---
 
-## Repository Structure
+## How it works
 
 ```text
-agent-harness-kit/
-├── AGENTS.md                              # Self-hosted <80-line operational map
-├── bin/
-│   └── agent-harness.mjs                  # Unified CLI (inspect, plan, init, verify, audit, doctor, update, uninstall)
-├── src/
-│   ├── detector.mjs                       # Read-only Greenfield/Brownfield/Monorepo workspace detector
-│   ├── profiles.mjs                       # 4 Testing-vs-Context profiles, 3 Context policies, 4 Security tiers, Stack catalog
-│   ├── yaml-validator.mjs                 # Strict YAML frontmatter & Agent Skills schema parser
-│   ├── installer.mjs                      # Safe non-destructive installer, SHA-256 manifest, update & uninstall
-│   └── auditor.mjs                        # Strict verifier, broken-link & script drift detector, token calculator
-├── skills/
-│   ├── harness-architect/SKILL.md         # Master Dual-Mode Router (Path A & Path B)
-│   ├── greenfield-advisor/SKILL.md        # Path A: Idea -> Stack Matrix -> Blueprint
-│   ├── brownfield-onboarder/SKILL.md      # Path B: Silent Repo Scan -> Grounded Interview
-│   ├── testing-tradeoffs/SKILL.md         # Interactive Testing Depth vs. Context Token Advisor
-│   ├── context-hygiene/SKILL.md           # 60% Context Ceiling & 7 Crisis Playbooks
-│   └── verification-loop/SKILL.md         # Default-FAIL Evaluator & 3-Strike Circuit Breaker
-├── docs/
-│   ├── GUIDE_PL.md                        # Pełny podręcznik użytkownika "za rączkę" (PL)
-│   ├── GUIDE_EN.md                        # Complete step-by-step user guide (EN)
-│   ├── TESTING_AND_CONTEXT_PLAYBOOK.md    # Token economics, testing profiles & crisis recovery
-│   └── schemas/feature-list.schema.json   # Local JSON Schema for Default-FAIL task ledger
-├── examples/
-│   ├── greenfield-saas-mvp/WALKTHROUGH.md
-│   └── brownfield-legacy-audit/WALKTHROUGH.md
-└── tests/
-    └── harness-kit.test.mjs               # Automated node:test unit & integration test suite
+  your repo ──► scan ──► facts with evidence (detected / inferred)
+                              │
+  your answers ──► design ◄───┘     (terminal interview, flags, answers file, or an agent)
+                     │
+                     ▼
+            .harness/spec.json      decisions: agents, rigor, commands, memory, approvals, rules
+                     │
+                     ▼
+          rule engine (src/engine.mjs) ──► modules, each with why / cost / files ──► explain
+                     │
+                     ▼
+                   build ──► AGENTS.md block, CLAUDE.md import, skills, seeded docs
+                     │            + .harness/lock.json (what the kit wrote)
+                     ▼
+                   check ──► drift, commands, references, skills, size  (--run: execute checks)
 ```
+
+The spec is the source of truth; generated files are its output. Re-running `design` keeps your earlier answers and changes only what you change. You can also edit the spec directly; its [JSON Schema](schema/spec.schema.json) gives editors completion and validation.
+
+| Path | Role |
+| --- | --- |
+| `src/scan.mjs` | Read-only reconnaissance: stack, package manager, scripts, test runners, CI, workspaces, sensitive areas, existing instruction files and skills |
+| `src/spec.mjs` | Spec model, defaults derived from the scan, validation |
+| `src/interview.mjs` | Questions (shared by the terminal interview and `design --questions`) |
+| `src/engine.mjs` | Deterministic rules: which modules apply, why, and at what cost |
+| `src/render.mjs`, `templates/skills/` | Content of `AGENTS.md`, `CLAUDE.md`, skills and seed files |
+| `src/build.mjs`, `src/fs-safe.mjs`, `src/file-transaction.mjs` | Planning, diffs, managed blocks, ownership, path safety, rollback |
+| `src/check.mjs` | Consistency checks and the optional command runner |
+| `skills/harness-designer/` | Protocol for an agent running the design conversation |
+
+---
+
+## What it can generate
+
+Each module is included only when its condition holds. `explain` shows the decision for your spec; `overrides` in the spec can force the overridable ones on or off.
+
+| Module | Included when | Output |
+| --- | --- | --- |
+| `instructions` | Always | Managed block in `AGENTS.md`: purpose, stack and layout, commands, definition of done |
+| `claude-import` | Claude Code selected | `CLAUDE.md` with `@AGENTS.md` |
+| `verification` | Always; wording depends on rigor (`light`, `standard`, `strict`) | Definition of done, including a stop rule after three failed fix attempts |
+| `verify-change` | Rigor is `strict` (overridable) | Skill: test-first, ordered checks, independent review, evidence report |
+| `quiet-output` | A full or end-to-end command exists (overridable) | Read only failures; reporter flags for the detected test runners |
+| `decision-log` | Memory is `decisions` or `handoff` | `docs/agent/decisions.md` (created once, then yours) and a rule to read it before structural changes |
+| `session-handoff` | Memory is `handoff` | `docs/agent/handoff.md` and a skill for resuming and handing off |
+| `approvals` | Any approvals selected; defaults include push, deploy, destructive changes, plus detected migrations, CI, infrastructure and secrets files | "Ask before" list, marked advisory in `explain` |
+| `risk-areas` | Payments or auth code detected and not on the approvals list (overridable) | Full checks and a separate mention in the report for those changes |
+| `project-rules` | You gave rules | One line each |
+| `workspace-scope` | More than one workspace package (overridable) | Per-package check command for the package manager |
+| `exploration` | 300 or more source files, or a multi-package workspace (overridable) | Search first; delegate wide surveys to a subagent where the tool supports it |
+| `stack-pending` | New project without a chosen stack | First task: decide the stack and re-run `design` |
+| `harness-maintenance` | Always (overridable) | Skill: change the harness through the spec, rebuild, check |
+
+The thresholds (300 files, three attempts, a 200-line budget) are judgment calls, not measured optima. They are visible and adjustable for that reason.
+
+---
+
+## Where each tool reads the harness
+
+| Tool | Instructions | Skills | Notes |
+| --- | --- | --- | --- |
+| Codex | `AGENTS.md` | `.agents/skills/` | Lists each skill's name, description and path, loads the body on use |
+| Claude Code | `CLAUDE.md`, which imports `AGENTS.md` | `.claude/skills/` | Recent versions can read `AGENTS.md` without `CLAUDE.md`; the import works in every version |
+| Cursor | `AGENTS.md` | `.agents/skills/`, `.cursor/skills/`, and `.claude/skills/` for compatibility | When Codex and Claude Code are both selected, the kit writes the same skills to both skill directories. Cursor can see both; the copies stay identical until someone edits one by hand |
+| Other (`other`) | `AGENTS.md` | `.agents/skills/` if the tool supports Agent Skills | Gemini CLI, GitHub Copilot and others read `AGENTS.md` or can be configured to |
+
+What we actually checked, in October 2026: Codex CLI loaded a generated `AGENTS.md` and the skills under `.agents/skills/` into its prompt. Cursor loaded this repository's `AGENTS.md` as project rules and listed skills from `.claude/skills/`. Claude Code's locations come from its documentation; we did not have a signed-in Claude Code session to confirm loading. These locations change. The tests verify the files the kit writes, not that a given client version loads them. If your tool behaves differently, please open an issue.
+
+Sources: [Codex skills](https://learn.chatgpt.com/docs/build-skills), [Claude Code memory](https://code.claude.com/docs/en/memory) and [skills](https://code.claude.com/docs/en/skills), [Cursor rules](https://cursor.com/docs/rules) and [skills](https://cursor.com/docs/skills).
+
+---
+
+## Changing the harness later
+
+- **Re-run `design`.** Previous answers are the defaults; change one and the rest stays. Facts the scan can see (layout, detected scripts, new sensitive areas) are refreshed; decisions you made are not overwritten.
+- **Edit `.harness/spec.json`** and run `build`. For example add a rule, switch `rigor` to `strict` before a payments refactor, or set `"overrides": { "exploration": true }`.
+- **Let the agent propose it.** The generated `harness-maintenance` skill tells the agent to suggest spec changes when you correct the same behavior twice, show you the diff and rebuild only after you agree.
+- **Keep it small.** Removing a rule that no longer changes behavior is as valuable as adding one. `check` reports the always-loaded line count against `budget.alwaysOnLines`.
+
+## What build and remove do to your files
+
+- `AGENTS.md` and `CLAUDE.md` get a block between `<!-- agent-harness:begin -->` and `<!-- agent-harness:end -->`. Everything outside it is yours and is never changed. An existing file keeps its content; the block is appended (prepended in `CLAUDE.md`, so the import comes first). Line endings (LF or CRLF) are preserved.
+- Skills are generated whole. `.harness/lock.json` records the hash of what the kit wrote. A file is replaced only if its bytes still match that hash; otherwise the build stops with a conflict and writes nothing. `--force` overrides that, explicitly.
+- If you edit inside a managed block, `build` and `remove` leave it alone (an "orphaned" result) instead of stripping your text. The same applies when a module is turned off, for example by dropping Claude Code from the agent list. `--force` is the only way the kit will overwrite those edits.
+- `docs/agent/decisions.md` and `docs/agent/handoff.md` are created once; later builds never overwrite them. `remove` deletes one only if the kit created it and you have not edited it. A file that was already there is never recorded, so `remove` never deletes it.
+- The lock is treated as untrusted: entries outside the set of paths the kit can generate are rejected. Every write is checked to stay inside the target directory and not to pass through a symlink or junction.
+- All writes of one command form a plan that is validated first and applied with best-effort rollback on failure. This is not crash-proof; commit before running it, as with any tool that writes to your repository.
+- `remove` deletes what the kit wrote and you didn't change, strips managed blocks that still match the lock, and keeps `.harness/spec.json`.
+
+---
+
+## Command reference
+
+| Command | What it does | Options |
+| --- | --- | --- |
+| `scan [dir]` | Read-only scan | `--json` |
+| `design [dir]` | Interview or flags, then writes `.harness/spec.json` | `--set key=value` (repeatable: `agents`, `summary`, `name`, `stack`, `rigor`, `fast`, `full`, `e2e`, `memory`, `approvals`), `--rule "..."` (repeatable), `--answers file.json`, `--yes`, `--dry-run`, `--questions`, `--agent`, `--json` |
+| `explain [dir]` | Reason and cost of every module in or out | `--brief`, `--json` |
+| `build [dir]` | Generate files from the spec | `--dry-run` (shows diffs), `--force`, `--json` |
+| `check [dir]` | Consistency checks; exit code 1 on errors | `--run`, `--timeout seconds`, `--strict` (warnings fail), `--json` |
+| `remove [dir]` | Remove unchanged generated output | `--dry-run`, `--json` |
+
+Without a TTY, `design` previews and writes nothing unless you pass `--yes`. Unknown options, or options that don't apply to a command, are errors.
+
+## Installing and pinning a version
+
+The package is not on the npm registry. You need Node.js 20+ and git.
+
+| How | Command |
+| --- | --- |
+| Latest on the default branch | `npx github:RolePlayingTech/agent-harness-kit <command>` |
+| A fixed commit (recommended in CI) | `npx github:RolePlayingTech/agent-harness-kit#<commit> <command>` |
+| A clone of this repository | `node bin/agent-harness.mjs <command>` |
+| A pinned devDependency | `npm install -D github:RolePlayingTech/agent-harness-kit#<commit>` then `npx agent-harness` |
+
+If `npx github:RolePlayingTech/agent-harness-kit` prints commands such as `init` or `audit`, you are on v2. Pin a v3 commit from this repository, or wait until v3 is the default branch.
+
+### In CI
+
+```yaml
+- uses: actions/setup-node@v4
+  with: { node-version: 22 }
+- run: npx --yes github:RolePlayingTech/agent-harness-kit#<commit> check . --strict
+```
+
+Replace `<commit>` with a full SHA from this repository. Unpinned `npx github:…` follows the default branch and will change under you.
+
+---
+
+## Limitations
+
+- **Instructions are not enforcement.** Everything the kit writes is text a model reads and may ignore. `explain` names where each rule can actually be enforced: branch protection, CODEOWNERS, CI, your tool's permission settings.
+- **No measured benefit is claimed.** There is no benchmark here comparing agents with and without this harness. The kit encodes practices that vendor documentation and research describe (short always-loaded instructions, procedures loaded on demand, deterministic checks, explicit stop rules), but how much they help depends on your model, tool and project.
+- **The scan is heuristic.** It understands Node.js (npm, pnpm, yarn, bun), Python, Go, Rust and Makefile targets, common frameworks and test runners. For anything else you answer the questions yourself. It reads files only; it never runs your code.
+- **It checks consistency, not quality.** `check` can tell you a script exists and the harness matches its spec; `check --run` can tell you the commands pass. Neither tells you whether your tests are good. `--run` executes those commands with your user permissions; there is no extra sandbox.
+- **One spec per repository.** Nested `AGENTS.md` files for individual packages are not generated.
+- **Format coverage.** `check` validates the YAML subset used in skill frontmatter (`key: value`, quoted values, `>` and `|` blocks) and reports anything else as unsupported rather than guessing.
+
+## Upgrading from v2
+
+v3 replaces v2's installer and its seven fixed skills. v2 files are not touched or managed by v3; [docs/MIGRATION.md](docs/MIGRATION.md) explains how to remove them and move to a spec.
+
+## Background
+
+- [Harness²: Recursive Agent Harnessing for an Open World](https://arxiv.org/abs/2610.14224) (Google Cloud AI Research, 2026) models a harness as eight editable components (system prompt, guardrails, memory, tool guidance, subagents, skills, scripts, plugins) and improves them automatically from repeated task runs. The kit borrows the vocabulary and the idea that harness changes should be small and backed by evidence; it does not implement the paper's automated method.
+- [AGENTS.md](https://agents.md/), the shared instruction-file convention.
+- [Claude Code: How Claude remembers your project](https://code.claude.com/docs/en/memory), including its guidance to keep instruction files short.
+- [MUMRO Academy lesson: AI Agent Harness Engineering](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/) (Polish).
+
+## Development
+
+```sh
+npm test            # unit, lifecycle, CLI, example and README contract tests
+npm run examples    # regenerate examples/*/expected and the README embeds after changing output
+npm run check       # this repository's own harness, generated by the kit
+```
+
+This repository's [`AGENTS.md`](AGENTS.md) is generated from [`.harness/spec.json`](.harness/spec.json) by the kit itself.
 
 ## License
 
-MIT © RolePlayingTech & MUMRO Academy ([academy.mumro.io](https://academy.mumro.io))
+MIT © RolePlayingTech & MUMRO Academy. See [LICENSE](LICENSE).

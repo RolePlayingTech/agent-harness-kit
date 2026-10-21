@@ -1,34 +1,36 @@
 {
   "name": "agent-harness-kit",
-  "version": "2.0.0",
-  "description": "Dual-Mode AI Agent Project Wizard, Harness Architect, Testing-vs-Context Trade-Off Advisor & Deterministic Verification CLI for Claude Code, Google Antigravity, OpenAI Codex, and Cursor.",
+  "version": "3.0.0",
+  "description": "Design, generate and check a tailored harness (AGENTS.md, CLAUDE.md, skills, verification and approval rules) for AI coding agents such as Codex, Claude Code and Cursor.",
   "type": "module",
   "bin": {
     "agent-harness": "./bin/agent-harness.mjs"
   },
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "skills",
+    "schema"
+  ],
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
-    "verify": "node bin/agent-harness.mjs verify . --strict",
-    "audit": "node bin/agent-harness.mjs audit .",
-    "doctor": "node bin/agent-harness.mjs doctor .",
-    "inspect": "node bin/agent-harness.mjs inspect .",
-    "plan": "node bin/agent-harness.mjs plan ."
+    "test": "node --test tests/engine.test.mjs tests/build.test.mjs tests/check.test.mjs tests/cli.test.mjs tests/interview.test.mjs tests/spec.test.mjs tests/examples.test.mjs tests/docs.test.mjs",
+    "examples": "node scripts/examples.mjs",
+    "check": "node bin/agent-harness.mjs check ."
   },
   "keywords": [
     "ai-agent",
     "harness-engineering",
-    "context-engineering",
     "agents-md",
     "claude-code",
-    "antigravity",
     "codex",
     "cursor",
     "agent-skills",
-    "mumro-academy"
+    "context-engineering"
   ],
-  "author": "RolePlayingTech (MUMRO Academy — https://academy.mumro.io)",
+  "author": "RolePlayingTech (MUMRO Academy, https://academy.mumro.io)",
   "license": "MIT",
-  "homepage": "https://academy.mumro.io/lessons/ai-agent-harness-engineering/",
+  "homepage": "https://github.com/RolePlayingTech/agent-harness-kit#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/RolePlayingTech/agent-harness-kit.git"

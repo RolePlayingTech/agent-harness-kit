@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/RolePlayingTech/agent-harness-kit/main/schema/spec.schema.json",
+  "specVersion": 1,
+  "project": {
+    "name": "agent-harness-kit",
+    "summary": "agent-harness-kit: a zero-dependency Node.js CLI that scans a repository, records harness decisions in .harness/spec.json and generates AGENTS.md, CLAUDE.md and skills for coding agents.",
+    "stage": "existing",
+    "stack": [
+      "Node.js"
+    ],
+    "layout": [
+      {
+        "path": "tests",
+        "purpose": "tests"
+      },
+      {
+        "path": "scripts",
+        "purpose": "project scripts"
+      }
+    ],
+    "packageManager": "npm",
+    "testFrameworks": [],
+    "workspaces": [],
+    "sourceFiles": 21,
+    "sensitive": {
+      "ci": [
+        ".github/workflows"
+      ]
+    }
+  },
+  "agents": [
+    "codex",
+    "claude",
+    "cursor"
+  ],
+  "verification": {
+    "rigor": "standard",
+    "fast": "node --test tests/engine.test.mjs",
+    "full": "npm test && npm run check",
+    "e2e": null
+  },
+  "memory": "decisions",
+  "approvals": [
+    "push",
+    "deploy",
+    "destructive",
+    "dependencies",
+    "ci"
+  ],
+  "rules": [
+    "Zero runtime dependencies: only Node.js 20+ built-ins.",
+    "After changing src/render.mjs, src/engine.mjs or templates/, run npm run examples and review the diff in examples/*/expected.",
+    "README and docs describe only implemented behavior; copy examples from examples/*/expected, never invent output.",
+    "Generated instructions must stay honest: never present an instruction as enforcement or a heuristic as a measured result."
+  ],
+  "overrides": {},
+  "tooling": {
+    "cli": "npx github:RolePlayingTech/agent-harness-kit"
+  },
+  "budget": {
+    "alwaysOnLines": 200
+  }
+}

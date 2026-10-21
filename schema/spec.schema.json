@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/RolePlayingTech/agent-harness-kit/main/schema/spec.schema.json",
+  "title": "agent-harness-kit spec",
+  "description": "Decisions from which agent-harness-kit generates a repository's agent harness. Edit, then run `agent-harness build`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specVersion", "project", "agents", "verification", "memory", "approvals", "rules"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "specVersion": { "const": 1 },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "summary", "stage", "stack", "layout"],
+      "properties": {
+        "name": { "$ref": "#/$defs/filledLine" },
+        "summary": { "$ref": "#/$defs/line", "description": "One sentence: what the project is and for whom. Opens AGENTS.md." },
+        "stage": { "enum": ["new", "existing"] },
+        "stack": { "$ref": "#/$defs/filledLines" },
+        "layout": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "purpose"],
+            "properties": { "path": { "$ref": "#/$defs/filledLine" }, "purpose": { "$ref": "#/$defs/line" } }
+          }
+        },
+        "packageManager": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/filledLine" }] },
+        "testFrameworks": { "$ref": "#/$defs/filledLines" },
+        "workspaces": { "$ref": "#/$defs/filledLines" },
+        "sourceFiles": { "type": "integer", "minimum": 0 },
+        "sensitive": { "type": "object", "additionalProperties": { "$ref": "#/$defs/filledLines" } }
+      }
+    },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["codex", "claude", "cursor", "other"] }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rigor"],
+      "properties": {
+        "rigor": { "enum": ["light", "standard", "strict"] },
+        "fast": { "$ref": "#/$defs/command" },
+        "full": { "$ref": "#/$defs/command" },
+        "e2e": { "$ref": "#/$defs/command" }
+      }
+    },
+    "memory": { "enum": ["none", "decisions", "handoff"] },
+    "approvals": { "$ref": "#/$defs/filledLines", "description": "Approval ids (push, deploy, destructive, dependencies, migrations, secrets, ci, infra, payments, auth) or custom one-line sentences." },
+    "rules": { "$ref": "#/$defs/filledLines" },
+    "overrides": {
+      "type": "object",
+      "propertyNames": { "enum": ["verify-change", "quiet-output", "exploration", "workspace-scope", "risk-areas", "harness-maintenance"] },
+      "additionalProperties": { "type": "boolean" }
+    },
+    "tooling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cli"],
+      "properties": { "cli": { "$ref": "#/$defs/filledLine", "description": "How generated text tells people to run the kit, e.g. `npx agent-harness` when it is a devDependency." } }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alwaysOnLines"],
+      "properties": { "alwaysOnLines": { "type": "integer", "minimum": 20 } }
+    }
+  },
+  "$defs": {
+    "line": { "type": "string", "pattern": "^[^\\r\\n]*$" },
+    "filledLine": { "type": "string", "pattern": "^[^\\r\\n]*\\S[^\\r\\n]*$" },
+    "filledLines": { "type": "array", "items": { "$ref": "#/$defs/filledLine" } },
+    "command": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/filledLine" }] }
+  }
+}

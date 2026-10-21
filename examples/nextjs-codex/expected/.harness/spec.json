@@ -1,0 +1,72 @@
+{
+  "$schema": "https://raw.githubusercontent.com/RolePlayingTech/agent-harness-kit/main/schema/spec.schema.json",
+  "specVersion": 1,
+  "project": {
+    "name": "invoice-hub",
+    "summary": "Invoicing app for small agencies: clients, invoices, Stripe payments and reminders.",
+    "stage": "existing",
+    "stack": [
+      "Node.js",
+      "TypeScript",
+      "Next.js",
+      "React",
+      "Prisma"
+    ],
+    "layout": [
+      {
+        "path": "src/app",
+        "purpose": "App Router routes and layouts"
+      },
+      {
+        "path": "prisma",
+        "purpose": "database schema and migrations"
+      }
+    ],
+    "packageManager": "npm",
+    "testFrameworks": [
+      "Vitest",
+      "Playwright"
+    ],
+    "workspaces": [],
+    "sourceFiles": 1,
+    "sensitive": {
+      "migrations": [
+        "prisma/migrations"
+      ],
+      "payments": [
+        "stripe"
+      ],
+      "auth": [
+        "next-auth"
+      ]
+    }
+  },
+  "agents": [
+    "codex"
+  ],
+  "verification": {
+    "rigor": "standard",
+    "fast": "npm run typecheck && npm run lint",
+    "full": "npm test",
+    "e2e": "npm run test:e2e"
+  },
+  "memory": "decisions",
+  "approvals": [
+    "push",
+    "deploy",
+    "destructive",
+    "dependencies",
+    "migrations"
+  ],
+  "rules": [
+    "Money is stored as integer cents; never use floating point for amounts.",
+    "Server Components by default; add \"use client\" only for interactive leaves."
+  ],
+  "overrides": {},
+  "tooling": {
+    "cli": "npx github:RolePlayingTech/agent-harness-kit"
+  },
+  "budget": {
+    "alwaysOnLines": 200
+  }
+}

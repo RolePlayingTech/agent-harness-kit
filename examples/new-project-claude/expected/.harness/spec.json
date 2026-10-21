@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/RolePlayingTech/agent-harness-kit/main/schema/spec.schema.json",
+  "specVersion": 1,
+  "project": {
+    "name": "habit-garden",
+    "summary": "Offline-first habit tracker for students; a small web app first, mobile later.",
+    "stage": "new",
+    "stack": [],
+    "layout": [],
+    "packageManager": null,
+    "testFrameworks": [],
+    "workspaces": [],
+    "sourceFiles": 0,
+    "sensitive": {}
+  },
+  "agents": [
+    "claude",
+    "cursor"
+  ],
+  "verification": {
+    "rigor": "light",
+    "fast": null,
+    "full": null,
+    "e2e": null
+  },
+  "memory": "handoff",
+  "approvals": [
+    "push",
+    "deploy",
+    "destructive"
+  ],
+  "rules": [],
+  "overrides": {},
+  "tooling": {
+    "cli": "npx github:RolePlayingTech/agent-harness-kit"
+  },
+  "budget": {
+    "alwaysOnLines": 200
+  }
+}

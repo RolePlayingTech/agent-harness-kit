@@ -1,0 +1,9 @@
+{
+  "agents": ["codex"],
+  "rigor": "standard",
+  "memory": "decisions",
+  "rules": [
+    "Money is stored as integer cents; never use floating point for amounts.",
+    "Server Components by default; add \"use client\" only for interactive leaves."
+  ]
+}
