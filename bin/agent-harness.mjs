@@ -51,46 +51,73 @@ const POLICY_ALIASES = {
   expansive: 'deep-research',
 };
 
+const VALUE_FLAGS = new Set(['provider', 'adapters', 'testing', 'profile', 'context', 'policy', 'archetype', 'max-lines']);
+const FLAG_ALIASES = { adapters: 'provider', profile: 'testing', policy: 'context' };
+const COMMAND_FLAGS = {
+  help: [], inspect: [], plan: ['archetype'],
+  init: ['provider', 'testing', 'context', 'blueprint', 'dry-run', 'force'],
+  update: ['provider', 'testing', 'context', 'blueprint', 'dry-run', 'force'],
+  uninstall: ['dry-run'], autotrigger: [],
+  verify: ['context', 'max-lines', 'strict'],
+  audit: ['context', 'max-lines'], doctor: ['context', 'max-lines'],
+};
+
 function parseArgs(argv) {
   const args = argv.slice(2);
-  const flags = {};
+  const flags = Object.create(null);
   const positionals = [];
-  const unknownFlags = [];
+  const errors = [];
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
+    if (a === '--') {
+      positionals.push(...args.slice(i + 1));
+      break;
+    }
     if (a.startsWith('--')) {
       const eqIdx = a.indexOf('=');
-      let key;
-      let val;
-      if (eqIdx !== -1) {
-        key = a.slice(2, eqIdx);
-        val = a.slice(eqIdx + 1);
-      } else {
-        key = a.slice(2);
+      const key = eqIdx === -1 ? a.slice(2) : a.slice(2, eqIdx);
+      if (!KNOWN_FLAGS.has(key)) {
+        errors.push(`Unrecognized option: --${key}.`);
+        continue;
+      }
+      let val = true;
+      if (VALUE_FLAGS.has(key)) {
         const next = args[i + 1];
-        if (next && !next.startsWith('-')) {
+        if (eqIdx !== -1) {
+          val = a.slice(eqIdx + 1);
+        } else if (next && !next.startsWith('-')) {
           val = next;
           i++;
         } else {
-          val = true;
+          errors.push(`Option --${key} requires a value.`);
+          continue;
         }
+        if (!val.trim()) errors.push(`Option --${key} requires a non-empty value.`);
+      } else if (eqIdx !== -1) {
+        errors.push(`Boolean option --${key} does not accept a value; omit it to disable it.`);
+        continue;
       }
-      if (!KNOWN_FLAGS.has(key)) {
-        unknownFlags.push(`--${key}`);
+      const canonical = FLAG_ALIASES[key] || key;
+      if (canonical === 'context' && Object.hasOwn(POLICY_ALIASES, val)) val = POLICY_ALIASES[val];
+      if (Object.hasOwn(flags, canonical) && flags[canonical] !== val) {
+        errors.push(`Conflicting values for --${canonical} (including aliases).`);
       }
-      flags[key] = val;
+      flags[canonical] = val;
     } else if (a === '-h') {
       flags.help = true;
     } else if (a === '-v') {
       flags.version = true;
     } else if (a.startsWith('-')) {
-      unknownFlags.push(a);
+      errors.push(`Unrecognized option: ${a}.`);
     } else {
       positionals.push(a);
     }
   }
-  return { command: positionals[0] || 'help', target: positionals[1] || '.', flags, unknownFlags };
+  if (positionals.length > 2) errors.push(`Unexpected positional argument(s): ${positionals.slice(2).join(', ')}.`);
+  if (positionals.some((value) => !value.trim())) errors.push('Positional arguments must not be empty.');
+  if (!positionals.length && args.length && !flags.help && !flags.version) errors.push('A command is required.');
+  return { command: positionals[0] || 'help', target: positionals[1] || '.', flags, errors };
 }
 
 function printHelp() {
@@ -111,31 +138,27 @@ Commands:
   uninstall [dir]   Remove only unmodified files managed by agent-harness-kit
 
 Options:
-  --provider, --adapters <id>   Platform profile: universal (default) | antigravity | claude | codex | cursor
+  --provider, --adapters <id>   One platform profile for init/update: universal (default) | antigravity | claude | codex | cursor
   --testing, --profile <id>     Testing vs Context profile: fast-prototype | smart-tiered (default) | isolated-verifier | mission-critical
   --context, --policy <id>      Context budget policy: minimal | balanced (default) | deep-research | low-cost
   --archetype <id>              Stack advisor archetype for 'plan': saas-web | content-seo-marketing | api-backend-service
   --blueprint                   Generate full durable project blueprint (docs/PROJECT_BRIEF.md, ARCHITECTURE.md, ADR, ROADMAP.md, feature_list.json, HANDOFF.md)
   --dry-run                     Preview planned file changes without modifying disk
   --force                       Overwrite existing conflicting files during init/update
-  --strict                      Enforce strict pass/fail exit code in verify
+  --strict                      Compatibility flag for verify (already strict by default)
+  --max-lines <positive-int>     Root line budget for verify/audit/doctor
   --json                        Output machine-readable JSON diagnostics
   --help, -h                    Show this help message
+  --version, -v                 Show the kit version
+
+Profiles/testing and blueprint/force apply to init/update. Context/policy also
+applies to verify/audit/doctor. Dry-run applies to init/update/uninstall.
+Comma-separated adapters are rejected; choose one profile or explicit universal.
 `);
 }
 
-const { command, target, flags, unknownFlags } = parseArgs(process.argv);
+const { command, target, flags, errors } = parseArgs(process.argv);
 const targetDir = resolve(target);
-
-if (flags.version) {
-  console.log(KIT_VERSION);
-  process.exit(0);
-}
-
-if (flags.help || command === 'help') {
-  printHelp();
-  process.exit(0);
-}
 
 function failCli(message) {
   if (flags.json) {
@@ -146,20 +169,40 @@ function failCli(message) {
   process.exit(1);
 }
 
+function runLifecycle(action) {
+  try {
+    return action();
+  } catch (error) {
+    failCli(error.message);
+  }
+}
+
+if (errors.length) failCli(errors.join(' '));
+
 if (!KNOWN_COMMANDS.has(command)) {
   failCli(`Unknown command "${command}". Supported commands: ${[...KNOWN_COMMANDS].join(', ')}.`);
 }
 
-if (unknownFlags.length > 0) {
-  failCli(`Unrecognized option(s): ${unknownFlags.join(', ')}.`);
+for (const key of Object.keys(flags)) {
+  if (!['json', 'help', 'version'].includes(key) && !COMMAND_FLAGS[command].includes(key)) {
+    failCli(`Option --${key} is not supported by ${command}.`);
+  }
 }
 
 // Resolve documented flag aliases (`--profile` -> `--testing`, `--policy` -> `--context`, `--adapters` -> `--provider`)
-const rawTesting = flags.testing ?? flags.profile ?? 'smart-tiered';
-const rawContext = flags.context ?? flags.policy ?? 'balanced';
-const resolvedContext = POLICY_ALIASES[rawContext] || rawContext;
-const rawProvider = flags.provider ?? flags.adapters ?? 'universal';
-const resolvedProvider = String(rawProvider).includes(',') ? 'universal' : rawProvider;
+const rawTesting = flags.testing ?? 'smart-tiered';
+const rawContext = flags.context ?? 'balanced';
+const resolvedContext = rawContext;
+const rawProvider = flags.provider ?? 'universal';
+const resolvedProvider = rawProvider;
+
+if (rawProvider.includes(',')) {
+  failCli('Multiple adapters are not supported. Choose one --provider/--adapters value, or explicitly choose universal for all supported tools.');
+}
+if (flags['max-lines'] !== undefined &&
+    (!/^[1-9]\d*$/.test(flags['max-lines']) || !Number.isSafeInteger(Number(flags['max-lines'])))) {
+  failCli('Option --max-lines requires a positive safe integer.');
+}
 
 if (!Object.prototype.hasOwnProperty.call(TESTING_PROFILES, rawTesting)) {
   failCli(`Invalid testing profile "${rawTesting}". Allowed: ${Object.keys(TESTING_PROFILES).join(', ')}.`);
@@ -172,6 +215,15 @@ if (!Object.prototype.hasOwnProperty.call(PLATFORM_ADAPTERS, resolvedProvider)) 
 }
 if (flags.archetype && !Object.prototype.hasOwnProperty.call(STACK_ADVISOR_CATALOG, flags.archetype)) {
   failCli(`Invalid archetype "${flags.archetype}". Allowed: ${Object.keys(STACK_ADVISOR_CATALOG).join(', ')}.`);
+}
+
+if (flags.version) {
+  console.log(KIT_VERSION);
+  process.exit(0);
+}
+if (flags.help || command === 'help') {
+  printHelp();
+  process.exit(0);
 }
 
 if (command === 'inspect') {
@@ -239,15 +291,15 @@ if (command === 'plan') {
 }
 
 if (command === 'init' || command === 'update') {
-  const result = installHarness(targetDir, {
-    provider: resolvedProvider,
-    testing: rawTesting,
-    context: resolvedContext,
+  const result = runLifecycle(() => installHarness(targetDir, {
+    provider: command === 'update' ? flags.provider : resolvedProvider,
+    testing: command === 'update' ? flags.testing : rawTesting,
+    context: command === 'update' ? flags.context : resolvedContext,
     blueprint: Boolean(flags.blueprint),
     dryRun: Boolean(flags['dry-run']),
     force: Boolean(flags.force),
     isUpdate: command === 'update',
-  });
+  }));
 
   if (flags.json) {
     console.log(JSON.stringify(result, null, 2));
@@ -270,7 +322,7 @@ if (command === 'init' || command === 'update') {
 }
 
 if (command === 'uninstall') {
-  const result = uninstallHarness(targetDir, { dryRun: Boolean(flags['dry-run']) });
+  const result = runLifecycle(() => uninstallHarness(targetDir, { dryRun: Boolean(flags['dry-run']) }));
   if (flags.json) {
     console.log(JSON.stringify(result, null, 2));
     process.exit(0);

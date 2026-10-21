@@ -7,7 +7,7 @@
     "agent-harness": "./bin/agent-harness.mjs"
   },
   "scripts": {
-    "test": "node --test tests/harness-kit.test.mjs",
+    "test": "node --test tests/harness-kit.test.mjs tests/lifecycle.test.mjs tests/schema.test.mjs tests/cli.test.mjs",
     "verify": "node bin/agent-harness.mjs verify . --strict",
     "audit": "node bin/agent-harness.mjs audit .",
     "doctor": "node bin/agent-harness.mjs doctor .",

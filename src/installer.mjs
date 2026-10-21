@@ -7,17 +7,16 @@ import { createHash } from 'node:crypto';
 import {
   existsSync,
   lstatSync,
-  mkdirSync,
   readFileSync,
   readdirSync,
-  rmSync,
   statSync,
-  writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectWorkspace } from './detector.mjs';
 import { CONTEXT_POLICIES, PLATFORM_ADAPTERS, TESTING_PROFILES } from './profiles.mjs';
+import { applyFilePlan } from './file-transaction.mjs';
+import { validateFeatureLedger } from '../scripts/feature-ledger-schema.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const KIT_ROOT = resolve(__dirname, '..');
@@ -45,7 +44,7 @@ export function normalizeSafeRelPath(relPath) {
   }
   const parts = normalized.split('/');
   for (const part of parts) {
-    if (!part || part === '.' || part === '..') {
+    if (!part || part === '.' || part === '..' || /[<>:"|?*\x00-\x1f]/.test(part) || /[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part)) {
       throw new Error(`Security violation: Path traversal or empty segment in "${relPath}".`);
     }
   }
@@ -72,22 +71,20 @@ export function assertSafeTargetPath(targetRoot, fullDest, relPathHint = '') {
     throw new Error(`Security violation: Path escapes target root (${fullDest} outside ${resolvedRoot}).`);
   }
 
-  // Check root itself if it exists
-  if (existsSync(resolvedRoot) && lstatSync(resolvedRoot).isSymbolicLink()) {
-    throw new Error(`Security violation: Target root itself is a symbolic link (${resolvedRoot}).`);
-  }
-
-  // Walk every ancestor segment from resolvedRoot to resolvedDest and reject any symlink/junction
-  const segments = relFromRoot.replaceAll('\\', '/').split('/');
-  let current = resolvedRoot;
-  for (const seg of segments) {
-    current = join(current, seg);
-    if (existsSync(current)) {
-      const lst = lstatSync(current);
-      if (lst.isSymbolicLink()) {
-        throw new Error(`Security violation: Symbolic link detected along target path (${current}).`);
-      }
+  // lstat sees dangling links too. Check ancestors above root as well as below it.
+  let current = resolvedDest;
+  while (true) {
+    let lst;
+    try { lst = lstatSync(current); } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
     }
+    if (lst?.isSymbolicLink()) throw new Error(`Security violation: Symbolic link detected along target path (${current}).`);
+    if (lst && (current === resolvedDest ? !lst.isFile() || lst.nlink > 1 : !lst.isDirectory())) {
+      throw new Error(`Security violation: Expected a regular single-link file and directory ancestors (${current}).`);
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
 }
 
@@ -105,14 +102,47 @@ function loadManifest(targetRoot) {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || typeof parsed.managedFiles !== 'object' || !parsed.managedFiles || Array.isArray(parsed.managedFiles)) {
     throw new Error(`Integrity violation: ${MANIFEST_REL_PATH} is missing a valid "managedFiles" object.`);
   }
+  const allowedPaths = allowedManagedPaths();
   for (const [relKey, meta] of Object.entries(parsed.managedFiles)) {
-    normalizeSafeRelPath(relKey);
+    if (normalizeSafeRelPath(relKey) !== relKey || !allowedPaths.has(relKey)) {
+      throw new Error(`Security violation: Unrecognized managed path "${relKey}".`);
+    }
     assertSafeTargetPath(resolvedRoot, join(resolvedRoot, relKey), relKey);
     if (!meta || typeof meta.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(meta.sha256)) {
       throw new Error(`Integrity violation: Invalid sha256 checksum for "${relKey}" in ${MANIFEST_REL_PATH}.`);
     }
   }
+  if (parsed.kitName !== 'agent-harness-kit' || !/^\d+\.\d+\.\d+$/.test(parsed.kitVersion || '') ||
+      !Object.hasOwn(PLATFORM_ADAPTERS, parsed.provider) ||
+      !Object.hasOwn(TESTING_PROFILES, parsed.testingProfile) || !Object.hasOwn(CONTEXT_POLICIES, parsed.contextPolicy)) {
+    throw new Error('Integrity violation: Invalid manifest kit identity, version or profiles.');
+  }
   return parsed;
+}
+
+// Root instructions and blueprint documents are user-owned after creation.
+const USER_DOCUMENTS = ['AGENTS.md', 'CLAUDE.md', '.cursor/rules/00-harness-core.mdc',
+  'docs/PROJECT_BRIEF.md', 'docs/ARCHITECTURE.md', 'docs/adr/0001-harness-and-testing-tradeoffs.md',
+  'docs/ROADMAP.md', 'feature_list.json', 'HANDOFF.md'];
+
+function bundledFiles() {
+  const files = new Map();
+  for (const dir of new Set(Object.values(PLATFORM_ADAPTERS).flatMap(a => a.skillDirs))) {
+    for (const item of collectKitSkillFiles()) files.set(`${dir}/${item.relFromSkills}`, item.content);
+  }
+  for (const rel of ['scripts/verify-harness.mjs', 'scripts/feature-ledger-schema.mjs', 'docs/schemas/feature-list.schema.json']) {
+    if (existsSync(join(KIT_ROOT, rel))) files.set(rel, readFileSync(join(KIT_ROOT, rel), 'utf8'));
+  }
+  return files;
+}
+
+function allowedManagedPaths() { return new Set([...USER_DOCUMENTS, ...bundledFiles().keys()]); }
+
+function operation(root, relPath, after) {
+  const path = join(root, relPath);
+  assertSafeTargetPath(root, path, relPath);
+  return { path, relPath, before: existsSync(path) ? readFileSync(path) : null,
+    after: after === null ? null : Buffer.from(after) };
 }
 
 function collectKitSkillFiles() {
@@ -220,7 +250,7 @@ function buildBlueprintFiles(recon, options = {}) {
   const contextPolicy = CONTEXT_POLICIES[options.context || 'balanced'] || CONTEXT_POLICIES.balanced;
   const verifyCmd = recon.verificationCommands.test || 'node scripts/verify-harness.mjs';
 
-  return {
+  const files = {
     'docs/PROJECT_BRIEF.md': `# Project Brief & MVP Scope
 
 ## 1. Problem & Target Audience
@@ -257,7 +287,7 @@ function buildBlueprintFiles(recon, options = {}) {
 `,
     'docs/adr/0001-harness-and-testing-tradeoffs.md': `# ADR 0001: AI Agent Harness & Testing-vs-Context Trade-Off Decision
 
-- **Status:** Accepted
+- **Status:** Proposed (requires explicit user approval)
 - **Date:** ${new Date().toISOString().slice(0, 10)}
 
 ## Context
@@ -320,7 +350,7 @@ Unconstrained AI coding sessions suffer from context window pollution, silent re
 - **Testing Profile:** \`${testingProfile.id}\`
 - **Context Policy:** \`${contextPolicy.id}\`
 
-## Completed & Verified
+## Scaffold Created (application verification pending)
 - Initialized non-destructive AI Agent Harness files.
 
 ## Exact Next Step for Next Session
@@ -329,6 +359,9 @@ Unconstrained AI coding sessions suffer from context window pollution, silent re
 3. Begin \`FEAT-001\` / \`FEAT-002\` using the \`harness-architect\` skill.
 `,
   };
+  const errors = validateFeatureLedger(JSON.parse(files['feature_list.json']));
+  if (errors.length) throw new Error(`Generated feature ledger violates canonical schema: ${errors.map(error => error.message).join('; ')}`);
+  return files;
 }
 
 /**
@@ -346,14 +379,22 @@ Unconstrained AI coding sessions suffer from context window pollution, silent re
  */
 export function installHarness(targetDir, options = {}) {
   const resolvedRoot = resolve(targetDir);
+  const previousManifest = loadManifest(resolvedRoot);
+  const effective = options.isUpdate ? {
+    provider: previousManifest?.provider, testing: previousManifest?.testingProfile,
+    context: previousManifest?.contextPolicy, ...Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined)),
+  } : options;
+  options = effective;
   const providerId = options.provider || 'universal';
-  const adapter = PLATFORM_ADAPTERS[providerId] || PLATFORM_ADAPTERS.universal;
+  if (!Object.hasOwn(PLATFORM_ADAPTERS, providerId) ||
+      !Object.hasOwn(TESTING_PROFILES, options.testing || 'smart-tiered') ||
+      !Object.hasOwn(CONTEXT_POLICIES, options.context || 'balanced')) throw new Error('Invalid installer provider or profile.');
+  const adapter = PLATFORM_ADAPTERS[providerId];
   const dryRun = Boolean(options.dryRun);
   const force = Boolean(options.force);
   const includeBlueprint = Boolean(options.blueprint);
 
   const recon = inspectWorkspace(resolvedRoot);
-  const previousManifest = loadManifest(resolvedRoot);
   const previousFiles = previousManifest?.managedFiles || {};
 
   // Build planned file map: relPath -> content
@@ -368,9 +409,8 @@ export function installHarness(targetDir, options = {}) {
   }
 
   // 2. Standalone verifier wrapper script in scripts/verify-harness.mjs
-  const verifierScriptPath = join(KIT_ROOT, 'scripts', 'verify-harness.mjs');
-  if (existsSync(verifierScriptPath)) {
-    plannedFiles.set('scripts/verify-harness.mjs', readFileSync(verifierScriptPath, 'utf8'));
+  for (const rel of ['scripts/verify-harness.mjs', 'scripts/feature-ledger-schema.mjs', 'docs/schemas/feature-list.schema.json']) {
+    if (existsSync(join(KIT_ROOT, rel))) plannedFiles.set(rel, readFileSync(join(KIT_ROOT, rel), 'utf8'));
   }
 
   // 3. Root instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/00-harness-core.mdc`)
@@ -401,6 +441,8 @@ export function installHarness(targetDir, options = {}) {
   const skippedUnchanged = [];
   const skippedConflicts = [];
   const newManagedFiles = { ...previousFiles };
+  const operations = [];
+  const trustedFiles = bundledFiles();
 
   for (const [relPath, content] of plannedFiles.entries()) {
     const fullDest = join(resolvedRoot, relPath);
@@ -410,10 +452,7 @@ export function installHarness(targetDir, options = {}) {
     if (!existsSync(fullDest)) {
       created.push(relPath);
       newManagedFiles[relPath] = { sha256: nextHash, updatedAt: new Date().toISOString() };
-      if (!dryRun) {
-        mkdirSync(dirname(fullDest), { recursive: true });
-        writeFileSync(fullDest, content, 'utf8');
-      }
+      operations.push(operation(resolvedRoot, relPath, content));
       continue;
     }
 
@@ -422,21 +461,22 @@ export function installHarness(targetDir, options = {}) {
 
     if (currentHash === nextHash) {
       skippedUnchanged.push(relPath);
-      newManagedFiles[relPath] = { sha256: nextHash, updatedAt: new Date().toISOString() };
+      // Equal bytes are not permission to adopt a pre-existing user file.
+      if (Object.hasOwn(previousFiles, relPath)) newManagedFiles[relPath] = { sha256: nextHash, updatedAt: new Date().toISOString() };
       continue;
     }
 
     // Check if file was previously managed and unmodified by the user
     const prevEntry = previousFiles[relPath];
-    const isUnmodifiedManagedFile = prevEntry && prevEntry.sha256 === currentHash;
+    // A user-editable manifest cannot authorize overwrites. Only packaged bytes
+    // are independently recognizable. Unknown historical bytes need --force.
+    const isUnmodifiedManagedFile = prevEntry && prevEntry.sha256 === currentHash &&
+      trustedFiles.has(relPath) && sha256(trustedFiles.get(relPath)) === currentHash;
 
     if (force || (options.isUpdate && isUnmodifiedManagedFile)) {
       updated.push(relPath);
       newManagedFiles[relPath] = { sha256: nextHash, updatedAt: new Date().toISOString() };
-      if (!dryRun) {
-        mkdirSync(dirname(fullDest), { recursive: true });
-        writeFileSync(fullDest, content, 'utf8');
-      }
+      operations.push(operation(resolvedRoot, relPath, content));
     } else {
       // Non-destructive default: never overwrite user's customized file!
       skippedConflicts.push(relPath);
@@ -455,12 +495,8 @@ export function installHarness(targetDir, options = {}) {
     managedFiles: newManagedFiles,
   };
 
-  if (!dryRun) {
-    const manifestFull = join(resolvedRoot, MANIFEST_REL_PATH);
-    assertSafeTargetPath(resolvedRoot, manifestFull);
-    mkdirSync(dirname(manifestFull), { recursive: true });
-    writeFileSync(manifestFull, JSON.stringify(manifestData, null, 2) + '\n', 'utf8');
-  }
+  operations.push(operation(resolvedRoot, MANIFEST_REL_PATH, JSON.stringify(manifestData, null, 2) + '\n'));
+  if (!dryRun) applyFilePlan(operations, full => assertSafeTargetPath(resolvedRoot, full));
 
   return {
     dryRun,
@@ -473,6 +509,9 @@ export function installHarness(targetDir, options = {}) {
     updated,
     skippedUnchanged,
     skippedConflicts,
+    changes: operations.map(op => ({ path: op.relPath,
+      action: op.before === null ? 'create' : 'replace',
+      beforeSha256: op.before === null ? null : sha256(op.before), afterSha256: sha256(op.after) })),
     manifestPath: MANIFEST_REL_PATH,
   };
 }
@@ -500,6 +539,8 @@ export function uninstallHarness(targetDir, options = {}) {
   const removed = [];
   const preservedModified = [];
   const missing = [];
+  const operations = [];
+  const trustedFiles = bundledFiles();
 
   for (const [relPath, meta] of Object.entries(manifest.managedFiles)) {
     const full = join(resolvedRoot, relPath);
@@ -514,21 +555,19 @@ export function uninstallHarness(targetDir, options = {}) {
       continue;
     }
     const currentHash = sha256(readFileSync(full, 'utf8'));
-    if (currentHash === meta.sha256) {
+    if (currentHash === meta.sha256 && trustedFiles.has(relPath) && sha256(trustedFiles.get(relPath)) === currentHash) {
       removed.push(relPath);
-      if (!dryRun) {
-        rmSync(full, { force: true });
-      }
+      operations.push(operation(resolvedRoot, relPath, null));
     } else {
       // User customized this file -> preserve it!
       preservedModified.push(relPath);
     }
   }
 
-  if (!dryRun && preservedModified.length === 0) {
-    const manifestFull = join(resolvedRoot, MANIFEST_REL_PATH);
-    if (existsSync(manifestFull)) rmSync(manifestFull, { force: true });
-  }
+  const retainedFiles = Object.fromEntries(preservedModified.map(rel => [rel, manifest.managedFiles[rel]]));
+  operations.push(operation(resolvedRoot, MANIFEST_REL_PATH, preservedModified.length === 0 ? null :
+    JSON.stringify({ ...manifest, managedFiles: retainedFiles }, null, 2) + '\n'));
+  if (!dryRun) applyFilePlan(operations, full => assertSafeTargetPath(resolvedRoot, full));
 
   return {
     dryRun,

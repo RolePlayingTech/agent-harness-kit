@@ -12,15 +12,21 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
+import { validateFeatureLedger } from './feature-ledger-schema.mjs';
 
 const rootDir = process.cwd();
 const args = process.argv.slice(2);
 const isDoctor = args.includes('--doctor');
 const isJson = args.includes('--json');
-const MAX_ROOT_LINES = Number(process.env.HARNESS_MAX_LINES || 80);
-const MAX_SKILL_LINES = Number(process.env.HARNESS_MAX_SKILL_LINES || 260);
+const MAX_ROOT_LINES = positiveLimit(process.env.HARNESS_MAX_LINES ?? 80, 'HARNESS_MAX_LINES');
+const MAX_SKILL_LINES = positiveLimit(process.env.HARNESS_MAX_SKILL_LINES ?? 260, 'HARNESS_MAX_SKILL_LINES');
 const SKILL_NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const VALID_TASK_STATUSES = new Set(['pending', 'in_progress', 'blocked', 'failed', 'verified']);
+
+function positiveLimit(value, name) {
+  const limit = Number(value);
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error(`${name} must be a positive safe integer.`);
+  return limit;
+}
 
 function estimateTokens(text) {
   return text ? Math.ceil(text.length / 4) : 0;
@@ -284,15 +290,11 @@ const ledgerPath = join(rootDir, 'feature_list.json');
 if (existsSync(ledgerPath)) {
   try {
     const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
-    for (const f of ledger.features || []) {
-      if (!VALID_TASK_STATUSES.has(f.status)) {
-        findings.push({
-          severity: 'error',
-          file: 'feature_list.json',
-          message: `Task "${f.id}" has invalid status "${f.status}".`,
-        });
-      }
-      if (f.status === 'verified' && !f.verificationEvidence) {
+    for (const error of validateFeatureLedger(ledger)) {
+      findings.push({ severity: 'error', file: 'feature_list.json', message: error.message });
+    }
+    for (const f of Array.isArray(ledger?.features) ? ledger.features : []) {
+      if (f?.status === 'verified' && !f.verificationEvidence) {
         findings.push({
           severity: 'error',
           file: 'feature_list.json',

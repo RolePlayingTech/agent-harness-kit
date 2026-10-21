@@ -1,117 +1,61 @@
-# Complete User Guide (EN) — AI Agent Harness Kit v2.0
+# User guide (EN)
 
-This guide walks you **step by step ("by the hand")** through designing, installing, and operating an AI Agent Harness — whether you are starting from a **blank directory with just an app idea (Path A: Greenfield)** or onboarding an agent onto a **production codebase (Path B: Brownfield)**.
+Agent Harness Kit installs coding-agent instructions and checks their configuration. It requires Node.js 20 or later. This stabilization branch is under review; read the [CLI contract](../README.md#cli-contract) and [known limits](STABILIZATION.md) before adopting it.
 
----
+## Start with a preview
 
-## 1. Why Dual-Mode Harness Engineering Matters
+From a checkout of the intended version:
 
-Static prompt templates fail because **new projects** and **existing codebases** have opposite failure modes:
-1. **In a Greenfield (empty) repo:** Asking a developer for "exact linter flags and test runner commands" makes no sense when no code exists yet. You need an **AI Product & Stack Advisor** that scopes your MVP, compares technology stacks with honest trade-offs, and writes a durable blueprint (`PROJECT_BRIEF.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `feature_list.json`) before generating application code.
-2. **In a Brownfield (existing) repo:** Asking a developer "what language and test runner do you use?" when `package.json`, `pyproject.toml`, or `.github/workflows` are sitting right there wastes time and trust. The agent must **silently inspect the workspace first**, present grounded findings with file paths, and only ask about architectural unknowns and testing trade-offs.
-3. **The Testing vs. Context Token Dilemma:** Running full E2E and unit test suites after every single line edit floods the LLM context window with thousands of lines of terminal output, triggering **Context Rot** and burning token budgets. Running zero tests causes silent regressions.
-
----
-
-## 2. Quick Start (CLI or Conversational Skill)
-
-### Option A: Zero-Dependency CLI
-Run directly in any repository (Node.js 20+):
-
-```bash
-# 1. Read-only workspace inspection (Greenfield vs. Brownfield detection)
-npx github:RolePlayingTech/agent-harness-kit inspect .
-
-# 2. Preview the recommended interview & trade-off plan
-npx github:RolePlayingTech/agent-harness-kit plan .
-
-# 3. Safely install the 6 skills + generate harness & blueprint files
-npx github:RolePlayingTech/agent-harness-kit init . --profile smart-tiered --blueprint
+```sh
+node bin/agent-harness.mjs inspect . --json
+node bin/agent-harness.mjs plan . --archetype saas-web
+node bin/agent-harness.mjs init ../my-project --provider codex --profile smart-tiered --policy balanced --dry-run --json
+node bin/agent-harness.mjs init ../my-project --provider codex --profile smart-tiered --policy balanced
+node bin/agent-harness.mjs verify ../my-project --strict
 ```
 
-### Option B: Conversational "Hand-Holding" Wizard
-Once the skills are installed in `.agents/skills/`, prompt your AI coding agent:
+`inspect` and `plan` are read-only. The scanner reads selected repository signals; findings are not a complete architecture audit. `plan` prints predefined technology alternatives. It does not conduct an interview, use a model or save a project decision.
 
-> **"Activate the `harness-architect` skill. Inspect this repository and guide me step-by-step through our architecture, testing-vs-context trade-offs, and harness setup."**
+`--provider` and `--adapters` are aliases for **one** selection: `codex`, `claude`, `cursor`, `antigravity` or `universal`. Comma-separated lists are rejected; choose `universal` explicitly if you want its combined output. This option describes generated files, not verified native skill discovery in every provider. The [provider table](../README.md#provider-output-and-discovery) lists exact paths.
 
----
+`--testing` / `--profile` accepts `fast-prototype`, `smart-tiered`, `isolated-verifier` or `mission-critical`. These profiles suggest workflows; they do not execute checks or guarantee defect rates. `--context` / `--policy` accepts `minimal`, `balanced`, `deep-research` or `low-cost`. Legacy `strict` and `expansive` remain aliases. Budgets are configurable preferences, not measured model limits.
 
-## 3. Path A: Greenfield Wizard (`greenfield-advisor`)
+Unknown flags, missing values, invalid values and conflicting aliases fail. There are no `--mode`, `--security` or `--name` options. `copilot` and `windsurf` are not supported provider selections. `--force` applies to `init` and `update`; uninstall has no force mode.
 
-Triggered automatically when the repository has no application manifests (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.).
+## New project: conversation before a blueprint
 
-### Step 1: Product Discovery & MVP Boundaries
-The agent asks at most 3 focused questions per turn:
-- **Problem & Target Audience:** Who uses this product and what is the core value loop?
-- **Explicit Non-Goals:** What features are strictly *out of scope* for v1 so future agent sessions don't over-engineer them?
-- **Team & Budget Constraints:** Solo builder, startup team, or enterprise environment?
+Ask your agent: “Use the harness-architect skill. Help me define the problem, users, MVP, non-goals and constraints. Separate my decisions from your suggestions.”
 
-### Step 2: Stack Comparison Matrix (2–3 Options)
-Instead of guessing a stack, the agent compares 2–3 concrete options across **Setup Speed, Hosting Cost, Operational Complexity, and AI-Legibility** (how well static types and schemas help AI agents catch their own mistakes).
+The skill guides a conversation when the host agent can discover and use it. The CLI does not persist those answers in a shared ProjectSpec yet. Record open questions and approval explicitly; do not infer acceptance from generated documents.
 
-### Step 3: Testing vs. Context Token Profile Selection
-You choose one of the 4 profiles (`fast-prototype`, `smart-tiered`, `isolated-verifier`, `mission-critical`) based on your token budget and reliability requirements.
+Optional `init --blueprint` creates editable scaffolds:
 
-### Step 4: Durable Project Blueprint Generation (`--blueprint`)
-Generates:
-- `AGENTS.md` (and optional `CLAUDE.md`) — Always-on router under 80 lines.
-- `docs/PROJECT_BRIEF.md` — Vision, core loop, and explicit non-goals.
-- `docs/ARCHITECTURE.md` — Directory layout, boundaries, and verification contract.
-- `docs/adr/0001-stack-and-testing-profile.md` — Architecture Decision Record.
-- `docs/ROADMAP.md` — Phased milestones.
-- `feature_list.json` — Default-FAIL task ledger initialized with `"status": "pending"`.
-- `HANDOFF.md` — Session bridge template.
+- `docs/PROJECT_BRIEF.md` and `docs/ARCHITECTURE.md`;
+- `docs/adr/0001-harness-and-testing-tradeoffs.md` and `docs/ROADMAP.md`;
+- `feature_list.json`, `docs/schemas/feature-list.schema.json` and `HANDOFF.md`.
 
----
+These files contain placeholders and generic steps. Review every generated claim and command. A generated ADR is not evidence of a user-approved architecture. A planned command does not prove that the application's test suite exists. The actual approved-decision workflow is tracked in [#28](https://github.com/RolePlayingTech/agent-harness-kit/issues/28).
 
-## 4. Path B: Brownfield Onboarder (`brownfield-onboarder`)
+## Existing project: read first
 
-Triggered automatically when existing manifests, source directories, or CI pipelines are detected.
+Review `inspect --json` and verify important observations against their source files. A detected script proves only that its definition exists. The current scanner does not establish complete component dependencies, API contracts, authorization boundaries or migration safety. Ask the agent to distinguish confirmed facts, hypotheses and unanswered questions before proposing changes.
 
-### Step 1: Silent Reconnaissance (`inspectWorkspace`)
-Before asking a single question, the agent inspects:
-- Languages, frameworks, and lockfiles (`pnpm`, `npm`, `yarn`, `bun`, `poetry`, `cargo`, `go`).
-- Existing verification commands (`build`, `test`, `lint`, `typecheck`) and CI workflows.
-- Monorepo workspaces (`apps/*`, `packages/*`) vs. single-package layout.
-- Existing agent instructions (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`) to prevent destructive overwrites.
+Preview installation before applying it. Existing root instructions and blueprint documents are user-owned: update preserves them unless explicitly forced, and uninstall always preserves them. Identical existing unowned files are not silently adopted.
 
-### Step 2: Grounded Findings Summary
-The agent reports exact file paths and detected risks first, then conducts a collaborative discussion focused strictly on:
-1. **Fragile / Off-Limits Directories** (migrations, legacy modules, vendor code).
-2. **Slow or Flaky Tests** that should be separated from the fast inner loop.
-3. **Testing Depth vs. Context Budget Trade-off Profile.**
+```sh
+node bin/agent-harness.mjs update ../my-project --provider codex --dry-run --json
+node bin/agent-harness.mjs update ../my-project --provider codex
+node bin/agent-harness.mjs uninstall ../my-project --dry-run --json
+```
 
----
+The JSON plan exposes paths and content hashes; it is not a text diff. Manifest checksums alone do not authorize overwrites or deletion. Only allowlisted static files matching the current bundle and manifest checksum are eligible for removal. Modified or unknown historical content is preserved. A complete preflight precedes writes; synchronous failures trigger rollback, with any recovery failure reported. There is no durable crash journal or protection against a concurrent adversarial filesystem. See [the recovery contract](STABILIZATION.md).
 
-## 5. Testing Depth vs. Context Token Trade-Off Matrix (`testing-tradeoffs`)
+## What verification establishes
 
-| Profile (`--profile`) | Inner Loop (Every Edit) | Outer Gate (Before Completion) | Est. Token Tax / Turn | Best For |
-| :--- | :--- | :--- | :--- | :--- |
-| **`fast-prototype`** | Typecheck / syntax check only | Build check on demand | **~300–600 tokens** | Hackathons, PoCs, early UI spikes |
-| **`smart-tiered`** *(Default)* | Typecheck + targeted unit test for touched file | Full build + integration/E2E suite before commit | **~800–1,500 tokens** | **90% of daily engineering projects** |
-| **`isolated-verifier`** | Fast typecheck in main session | Heavy E2E / test suite delegated to an isolated subagent returning `<200 words` | **~500 tokens in main chat** | Large apps with noisy Playwright / Docker logs |
-| **`mission-critical`** | Typecheck + lint + unit tests + coverage | Full E2E + security audit + schema validation | **~3,000–8,000 tokens** | Fintech, auth, billing, healthcare, core infra |
+`verify` checks configuration: root files, supported frontmatter checks, references and task-ledger constraints. It does **not** run application tests, builds or typechecks, and does not authenticate a manually supplied evidence record. The copied standalone verifier still differs from the CLI; do not treat the two as equivalent application gates.
 
----
+`audit` reports static findings and character-based instruction-size estimates. Its hypothetical savings values are not observed token usage. `doctor` is informational. `autotrigger` writes missing skill references into `AGENTS.md`; inspect its diff.
 
-## 6. Four-Tier Security & Capability Model
+Run the application's actual checks separately and record their commands, exit codes and checked revision. Never infer application completion from a harness check. A bounded executor with structured execution evidence is tracked in [#26](https://github.com/RolePlayingTech/agent-harness-kit/issues/26).
 
-Every generated harness encodes explicit permission boundaries (`--security`):
-- **`tier-0-readonly`**: Read/search analysis only (audits, code review).
-- **`tier-1-workspace-safe`**: File edits + local deterministic test execution; no network or destructive git operations.
-- **`tier-2-network-dev`** *(Default)*: Package installation, local dev servers, and non-destructive git branches.
-- **`tier-3-human-gated`**: Production deployments, database migrations, secret rotation, and force-pushes **always require explicit human confirmation**.
-
----
-
-## 7. CLI Command Reference (`agent-harness`)
-
-- `agent-harness inspect [dir] [--json]` — Read-only workspace detection & risk discovery.
-- `agent-harness plan [dir]` — Recommended interview path (Greenfield vs. Brownfield) & trade-off matrix.
-- `agent-harness init [dir] [--mode auto|greenfield|brownfield] [--profile ...] [--policy strict|balanced|expansive] [--adapters claude,cursor,copilot,windsurf] [--blueprint] [--dry-run] [--force]` — Non-destructive installation.
-- `agent-harness verify [dir] [--strict] [--json]` — Deterministic pass/fail verification for CI gates.
-- `agent-harness audit [dir] [--json]` — Advisory token tax & drift report.
-- `agent-harness doctor [dir]` — Actionable health check and remediation guide.
-- `agent-harness autotrigger [dir]` — Auto-repairs untriggered ("dead-weight") skills in `AGENTS.md` while enforcing Google Research's **Harness²** `8,000-char` Always-On cap (arXiv:2610.14224).
-- `agent-harness update [dir] [--dry-run] [--force]` — Safe checksum-verified upgrade of unmodified kit files.
-- `agent-harness uninstall [dir] [--dry-run] [--force]` — Clean removal of unmodified kit files.
+Markdown skills guide behavior. They cannot enforce sandbox permissions, production approval or branch protection. Configure those controls in your provider and CI. No measured token savings, reliability advantage or benchmark superiority is claimed; benchmark work remains [#34](https://github.com/RolePlayingTech/agent-harness-kit/issues/34).
