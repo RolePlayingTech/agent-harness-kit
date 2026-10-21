@@ -9,7 +9,7 @@ export function buildQuestions(scan, current) {
   const cmdEvidence = (role) => scan.commands[role].map((c) => `${c.cmd} (${c.confidence}, ${c.evidence})`);
   const q = [
     {
-      id: 'agents', type: 'multi', prompt: 'Which AI coding tools will work in this repository?',
+      id: 'agents', type: 'multi', required: true, prompt: 'Which AI coding tools will work in this repository?',
       why: 'Decides which entry files and skill directories are generated; each tool reads different paths.',
       options: Object.entries(AGENTS).map(([id, a]) => ({ id, label: a.label, detail: `reads ${a.reads}` })),
       evidence: scan.agentHints.map((h) => `${h.agent} (${h.evidence})`),
@@ -110,6 +110,7 @@ export async function runInterview(scan, preset, { input = process.stdin, output
       const hint = q.options && q.type === 'multi' ? ' (numbers or ids, comma-separated)' : q.options ? ' (number or id)' : '';
       while (true) {
         const raw = (await rl.question(`  [${show(q.default)}]${hint} > `)).trim();
+        if (!raw && q.required && !(Array.isArray(q.default) ? q.default.length : q.default)) { say('  Choose at least one.'); continue; }
         if (!raw) { answers[q.id] = q.default; break; }
         if (!q.options) { answers[q.id] = q.type === 'list' ? raw.split(',').map((s) => s.trim()).filter(Boolean) : raw; break; }
         const picked = raw.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (/^\d+$/.test(s) ? q.options[Number(s) - 1]?.id : s));

@@ -21,7 +21,7 @@ function scripted(answers) {
 test('terminal interview accepts numbers, ids, defaults and multi-line rules, and re-asks on invalid input', async () => {
   const scan = scanRepository(project(NEXT_APP));
   const io = scripted([
-    '9', '1,3',           // agents: invalid, then codex + cursor
+    '', '9', '1,3',       // agents: empty (required), invalid, then codex + cursor
     '',                   // summary: keep default
     'light',              // rigor by id
     '', '', 'none',       // fast keep, full keep, e2e cleared
@@ -38,6 +38,7 @@ test('terminal interview accepts numbers, ids, defaults and multi-line rules, an
   assert.equal(answers.memory, 'handoff');
   assert.deepEqual(answers.approvals, ['push', 'deploy']);
   assert.deepEqual(answers.rules, ['Use integer cents.']);
+  assert.match(io.transcript(), /Choose at least one/);
   assert.match(io.transcript(), /Not one of the options/);
   assert.match(io.transcript(), /found: npm run typecheck \(detected, package\.json#scripts\.typecheck\)/);
 });
