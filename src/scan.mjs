@@ -61,26 +61,31 @@ function countLines(text) {
   return trimmed.split('\n').length;
 }
 
+const LANGUAGE_BY_EXT = { py: 'Python', js: 'JavaScript', mjs: 'JavaScript', cjs: 'JavaScript', ts: 'TypeScript', go: 'Go', rs: 'Rust', java: 'Java', kt: 'Kotlin', rb: 'Ruby', php: 'PHP', cs: 'C#', swift: 'Swift', dart: 'Dart' };
+
 function walkSourceFiles(root) {
   let count = 0;
   let visited = 0;
   let truncated = false;
+  const languages = {};
   const stack = [root];
   while (stack.length) {
     const dir = stack.pop();
     let entries;
     try { entries = readdirSync(dir, { withFileTypes: true }); } catch { continue; }
     for (const entry of entries) {
-      if (++visited > MAX_WALK_ENTRIES) { truncated = true; return { count, truncated }; }
+      if (++visited > MAX_WALK_ENTRIES) { truncated = true; return { count, truncated, languages }; }
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
         if (!IGNORED_DIRS.has(entry.name)) stack.push(join(dir, entry.name));
       } else if (SOURCE_EXT.test(entry.name)) {
         count++;
+        const lang = LANGUAGE_BY_EXT[entry.name.split('.').pop().toLowerCase()];
+        if (lang) languages[lang] = (languages[lang] || 0) + 1;
       }
     }
   }
-  return { count, truncated };
+  return { count, truncated, languages };
 }
 
 function runCommand(pm, script) {
@@ -272,7 +277,14 @@ export function scanRepository(targetDir) {
     .filter(([dir], _, all) => !(dir === 'app' && all.some(([d]) => d === 'src/app')))
     .map(([path, purpose]) => ({ path, purpose }));
 
-  const { count: sourceFiles, truncated } = exists ? walkSourceFiles(root) : { count: 0, truncated: false };
+  const { count: sourceFiles, truncated, languages = {} } = exists ? walkSourceFiles(root) : { count: 0, truncated: false };
+  if (!stack.length) {
+    const [top] = Object.entries(languages).sort((a, b) => b[1] - a[1]);
+    if (top) {
+      stack.push(top[0]);
+      fact('language', 'Main language', top[0], `${top[1]} source file(s), no manifest`, 'inferred');
+    }
+  }
   const hasCode = stack.length > 0 || sourceFiles > 0;
   const stage = hasCode ? 'existing' : 'new';
 

@@ -34,6 +34,12 @@ test('an agent list split by PowerShell into spaces is accepted like a comma lis
   assert.deepEqual(JSON.parse(read(root, '.harness/spec.json')).approvals, ['Ask before emailing customers']);
 });
 
+test('scan names the main language of a folder of scripts without a manifest', () => {
+  const { data } = jsonCli(['scan', project({ 'build.py': 'print(1)\n', 'render.py': 'print(2)\n', 'page.js': '' })]);
+  assert.deepEqual(data.stack, ['Python']);
+  assert.equal(data.stage, 'existing');
+});
+
 test('design without --yes in a non-interactive shell previews and writes nothing', () => {
   const root = project(NEXT_APP);
   const r = cli(['design', root, '--set', 'agents=codex']);
