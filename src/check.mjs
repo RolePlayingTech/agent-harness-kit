@@ -206,7 +206,7 @@ export function checkHarness(targetDir, { run = false, timeoutSeconds = 900, onR
     const byName = new Map();
     for (const s of skills) byName.set(s.name, [...(byName.get(s.name) || []), s.dir]);
     const dupes = [...byName].filter(([, dirs]) => new Set(dirs).size > 1).map(([name]) => name);
-    if (dupes.length) add('info', 'duplicate-skill', `${dupes.length} skill(s) exist in more than one skill directory (${dupes.join(', ')}); Cursor reads all of them, so they may be listed twice.`, SKILL_ROOTS.filter((d) => skills.some((s) => s.dir === d)).join(', '));
+    if (dupes.length) add('info', 'duplicate-skill', `${dupes.length} skill(s) exist in more than one skill directory (${dupes.join(', ')}). Cursor reads several of these directories; keep one copy unless another selected tool needs the second, or the copies will drift apart.`, SKILL_ROOTS.filter((d) => skills.some((s) => s.dir === d)).join(', '));
   }
 
   if (spec.approvals.length) add('info', 'advisory', `${spec.approvals.length} ask-before rule(s) are instructions only; \`explain\` lists ways to enforce them.`, 'AGENTS.md');

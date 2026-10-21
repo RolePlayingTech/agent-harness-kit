@@ -196,7 +196,12 @@ try {
       print({ ok: true, instructions: text }, text);
       process.exit(0);
     }
-    if (!existsSync(root)) fail(`Directory not found: ${root}. Create it first (a new project can be an empty directory).`);
+    if (!existsSync(root)) {
+      const quoting = / /.test(dir)
+        ? ' If this text was meant to be part of --rule or --set, quote the whole value (in PowerShell use single quotes).'
+        : ' Create it first (a new project can be an empty directory).';
+      fail(`Directory not found: ${root}.${quoting}`);
+    }
     const scan = scanRepository(root);
     const prev = existsSync(join(root, SPEC_PATH)) ? loadSpec(root) : null;
     if (prev && !prev.spec) fail(`Existing ${SPEC_PATH} cannot be read: ${prev.errors.map((e) => e.message).join('; ')}`);

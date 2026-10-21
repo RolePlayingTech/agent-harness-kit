@@ -16,6 +16,12 @@ test('unknown commands, unknown options and misplaced options fail', () => {
   assert.equal(cli(['help']).code, 0);
 });
 
+test('a leftover unquoted --rule fragment is not treated as a new project directory', () => {
+  const r = cli(['design', 'client only for interactive leaves.', '--yes', '--set', 'agents=codex']);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /quote the whole value/);
+});
+
 test('design without an agent choice fails with a hint instead of guessing', () => {
   const root = project({});
   const r = cli(['design', root, '--yes']);

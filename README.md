@@ -4,13 +4,20 @@
 
 A coding agent is a model plus a *harness*: the instructions it reads every session, the procedures it loads on demand, the commands it uses to check its own work, what it remembers between sessions and what it must not do without asking. Agent Harness Kit helps you decide what that harness should contain for *your* project, generates the files each tool actually reads, explains every choice, and checks that the result stays consistent as the project changes.
 
-It works with **OpenAI Codex**, **Claude Code**, **Cursor** and any other tool that reads `AGENTS.md`. It is a single Node.js CLI (Node 20+) with no runtime dependencies.
+It works with **OpenAI Codex**, **Claude Code**, **Cursor** and any other tool that reads `AGENTS.md`. It is a single Node.js CLI with no runtime dependencies.
+
+## Quick start
+
+You need Node.js 20 or newer and git. Commit or stash your work first, then run this in the repository root:
 
 ```sh
-npx github:RolePlayingTech/agent-harness-kit design   # a few questions, answered from your repo where possible
-npx github:RolePlayingTech/agent-harness-kit build    # writes AGENTS.md, CLAUDE.md, skills
-npx github:RolePlayingTech/agent-harness-kit check    # is the harness consistent with the repo and the spec?
+npx github:RolePlayingTech/agent-harness-kit design            # scans the repo, asks what it cannot find out, saves .harness/spec.json
+npx github:RolePlayingTech/agent-harness-kit build --dry-run   # shows every file it would write, as a diff
+npx github:RolePlayingTech/agent-harness-kit build             # writes AGENTS.md (and CLAUDE.md, skills) as planned
+npx github:RolePlayingTech/agent-harness-kit check             # is the harness consistent with the repo and the spec?
 ```
+
+`design` is an interview in your terminal: each question shows what the scan found and why it matters, and Enter accepts the proposed value. It changes nothing but `.harness/spec.json`; `build` writes the rest. Commit both, and the next person or agent gets the same harness. To use a fixed version instead of the latest commit, see [Installing and pinning a version](#installing-and-pinning-a-version).
 
 > Built for the MUMRO Academy lesson [AI Agent Harness Engineering](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/) (Polish), which explains the reasoning behind every part of this tool.
 
@@ -64,14 +71,17 @@ Everything the kit can read, it doesn't ask about. What remains are decisions on
 
 ### 2. Design
 
-Run `design` in a terminal and answer the questions; Enter accepts the value the scan proposed. Each question shows why it matters and what was found. The same answers can be given as flags (this is what the example uses, via [`answers.json`](examples/nextjs-codex/answers.json)):
+Run `design` in a terminal and answer the questions; Enter accepts the value the scan proposed. Each question shows why it matters and what was found. The same answers can be given as a JSON file (this is what the example uses, [`answers.json`](examples/nextjs-codex/answers.json)) or as flags:
 
 ```sh
+npx github:RolePlayingTech/agent-harness-kit design --yes --answers answers.json
+# or:
 npx github:RolePlayingTech/agent-harness-kit design --yes \
   --set agents=codex --set rigor=standard --set memory=decisions \
-  --rule "Money is stored as integer cents; never use floating point for amounts." \
-  --rule 'Server Components by default; add "use client" only for interactive leaves.'
+  --rule "Money is stored as integer cents; never use floating point for amounts."
 ```
+
+`--rule` values that contain `"` are safer in the answers file. On Windows, Node re-parses the command line, so an inner quote can split the value and the leftover words are treated as a directory.
 
 The user's sentence maps to: *standard* rigor (fast check while working, full suite once before done; not *strict*), *decisions* memory (a decision log, not a session handoff), Codex only. Payments and auth are detected, but asking permission before every edit there would be the heavy process the user rejected, so they get a lighter "extra care" rule instead. Migrations go on the ask-before list.
 
@@ -239,7 +249,7 @@ npx github:RolePlayingTech/agent-harness-kit check        # static: drift, scrip
 npx github:RolePlayingTech/agent-harness-kit check --run  # also runs the fast, full and e2e commands once
 ```
 
-`check` fails when the spec and the files disagree, when a configured `npm run` script doesn't exist, when `CLAUDE.md` imports a missing file or when a skill's frontmatter is invalid. It warns about dead path references, duplicated commands in hand-written notes, and always-loaded text above your budget. Commands run only with `--run`, because running them executes project code.
+`check` fails when the spec and the files disagree, when a configured `npm run` script doesn't exist, when `CLAUDE.md` imports a missing file or when a skill's frontmatter is invalid. It warns about dead path references, duplicated commands in hand-written notes, and always-loaded text above your budget. Commands run only with `--run`. That flag prints the commands, the directory they will run in, and a reminder that they execute with your permissions; only use it on a repository you trust, as with `npm test`.
 
 ---
 
@@ -373,16 +383,18 @@ The thresholds (300 files, three attempts, a 200-line budget) are judgment calls
 | --- | --- | --- | --- |
 | Codex | `AGENTS.md` | `.agents/skills/` | Lists each skill's name, description and path, loads the body on use |
 | Claude Code | `CLAUDE.md`, which imports `AGENTS.md` | `.claude/skills/` | Recent versions can read `AGENTS.md` without `CLAUDE.md`; the import works in every version |
-| Cursor | `AGENTS.md` | `.agents/skills/`, `.cursor/skills/`, and `.claude/skills/` for compatibility | With Codex *and* Claude Code selected, skills exist in both directories and Cursor may list them twice |
+| Cursor | `AGENTS.md` | `.agents/skills/`, `.cursor/skills/`, and `.claude/skills/` for compatibility | When Codex and Claude Code are both selected, the kit writes the same skills to both skill directories. Cursor can see both; the copies stay identical until someone edits one by hand |
 | Other (`other`) | `AGENTS.md` | `.agents/skills/` if the tool supports Agent Skills | Gemini CLI, GitHub Copilot and others read `AGENTS.md` or can be configured to |
 
-Sources, checked in October 2026: [Codex skills](https://learn.chatgpt.com/docs/build-skills), [Claude Code memory](https://code.claude.com/docs/en/memory) and [skills](https://code.claude.com/docs/en/skills), [Cursor rules](https://cursor.com/docs/rules) and [skills](https://cursor.com/docs/skills). These locations change; the tests verify the files the kit writes, not that a given client version loads them. If your tool behaves differently, please open an issue.
+What we actually checked, in October 2026: Codex CLI loaded a generated `AGENTS.md` and the skills under `.agents/skills/` into its prompt. Cursor loaded this repository's `AGENTS.md` as project rules and listed skills from `.claude/skills/`. Claude Code's locations come from its documentation; we did not have a signed-in Claude Code session to confirm loading. These locations change. The tests verify the files the kit writes, not that a given client version loads them. If your tool behaves differently, please open an issue.
+
+Sources: [Codex skills](https://learn.chatgpt.com/docs/build-skills), [Claude Code memory](https://code.claude.com/docs/en/memory) and [skills](https://code.claude.com/docs/en/skills), [Cursor rules](https://cursor.com/docs/rules) and [skills](https://cursor.com/docs/skills).
 
 ---
 
 ## Changing the harness later
 
-- **Re-run `design`.** Previous answers are the defaults; change one and the rest stays.
+- **Re-run `design`.** Previous answers are the defaults; change one and the rest stays. Facts the scan can see (layout, detected scripts, new sensitive areas) are refreshed; decisions you made are not overwritten.
 - **Edit `.harness/spec.json`** and run `build`. For example add a rule, switch `rigor` to `strict` before a payments refactor, or set `"overrides": { "exploration": true }`.
 - **Let the agent propose it.** The generated `harness-maintenance` skill tells the agent to suggest spec changes when you correct the same behavior twice, show you the diff and rebuild only after you agree.
 - **Keep it small.** Removing a rule that no longer changes behavior is as valuable as adding one. `check` reports the always-loaded line count against `budget.alwaysOnLines`.
@@ -391,10 +403,11 @@ Sources, checked in October 2026: [Codex skills](https://learn.chatgpt.com/docs/
 
 - `AGENTS.md` and `CLAUDE.md` get a block between `<!-- agent-harness:begin -->` and `<!-- agent-harness:end -->`. Everything outside it is yours and is never changed. An existing file keeps its content; the block is appended (prepended in `CLAUDE.md`, so the import comes first). Line endings (LF or CRLF) are preserved.
 - Skills are generated whole. `.harness/lock.json` records the hash of what the kit wrote. A file is replaced only if its bytes still match that hash; otherwise the build stops with a conflict and writes nothing. `--force` overrides that, explicitly.
-- `docs/agent/decisions.md` and `docs/agent/handoff.md` are created once and then belong to the project. A pre-existing file with that name is never recorded as the kit's, so `remove` never deletes it.
+- If you edit inside a managed block, `build` and `remove` leave it alone (an "orphaned" result) instead of stripping your text. The same applies when a module is turned off, for example by dropping Claude Code from the agent list. `--force` is the only way the kit will overwrite those edits.
+- `docs/agent/decisions.md` and `docs/agent/handoff.md` are created once; later builds never overwrite them. `remove` deletes one only if the kit created it and you have not edited it. A file that was already there is never recorded, so `remove` never deletes it.
 - The lock is treated as untrusted: entries outside the set of paths the kit can generate are rejected. Every write is checked to stay inside the target directory and not to pass through a symlink or junction.
 - All writes of one command form a plan that is validated first and applied with best-effort rollback on failure. This is not crash-proof; commit before running it, as with any tool that writes to your repository.
-- `remove` deletes what the kit wrote and you didn't change, strips managed blocks, and keeps `.harness/spec.json`.
+- `remove` deletes what the kit wrote and you didn't change, strips managed blocks that still match the lock, and keeps `.harness/spec.json`.
 
 ---
 
@@ -411,7 +424,18 @@ Sources, checked in October 2026: [Codex skills](https://learn.chatgpt.com/docs/
 
 Without a TTY, `design` previews and writes nothing unless you pass `--yes`. Unknown options, or options that don't apply to a command, are errors.
 
-The package is not published to npm yet. `npx github:RolePlayingTech/agent-harness-kit` runs the default branch (it needs git and network access); to pin a version, use a tag or commit, for example `npx github:RolePlayingTech/agent-harness-kit#<commit>`. From a clone, `node bin/agent-harness.mjs` works the same.
+## Installing and pinning a version
+
+The package is not on the npm registry. You need Node.js 20+ and git.
+
+| How | Command |
+| --- | --- |
+| Latest on the default branch | `npx github:RolePlayingTech/agent-harness-kit <command>` |
+| A fixed commit (recommended in CI) | `npx github:RolePlayingTech/agent-harness-kit#<commit> <command>` |
+| A clone of this repository | `node bin/agent-harness.mjs <command>` |
+| A pinned devDependency | `npm install -D github:RolePlayingTech/agent-harness-kit#<commit>` then `npx agent-harness` |
+
+If `npx github:RolePlayingTech/agent-harness-kit` prints commands such as `init` or `audit`, you are on v2. Pin a v3 commit from this repository, or wait until v3 is the default branch.
 
 ### In CI
 
@@ -421,6 +445,8 @@ The package is not published to npm yet. `npx github:RolePlayingTech/agent-harne
 - run: npx --yes github:RolePlayingTech/agent-harness-kit#<commit> check . --strict
 ```
 
+Replace `<commit>` with a full SHA from this repository. Unpinned `npx github:…` follows the default branch and will change under you.
+
 ---
 
 ## Limitations
@@ -428,7 +454,7 @@ The package is not published to npm yet. `npx github:RolePlayingTech/agent-harne
 - **Instructions are not enforcement.** Everything the kit writes is text a model reads and may ignore. `explain` names where each rule can actually be enforced: branch protection, CODEOWNERS, CI, your tool's permission settings.
 - **No measured benefit is claimed.** There is no benchmark here comparing agents with and without this harness. The kit encodes practices that vendor documentation and research describe (short always-loaded instructions, procedures loaded on demand, deterministic checks, explicit stop rules), but how much they help depends on your model, tool and project.
 - **The scan is heuristic.** It understands Node.js (npm, pnpm, yarn, bun), Python, Go, Rust and Makefile targets, common frameworks and test runners. For anything else you answer the questions yourself. It reads files only; it never runs your code.
-- **It checks consistency, not quality.** `check` can tell you a script exists and the harness matches its spec; `check --run` can tell you the commands pass. Neither tells you whether your tests are good.
+- **It checks consistency, not quality.** `check` can tell you a script exists and the harness matches its spec; `check --run` can tell you the commands pass. Neither tells you whether your tests are good. `--run` executes those commands with your user permissions; there is no extra sandbox.
 - **One spec per repository.** Nested `AGENTS.md` files for individual packages are not generated.
 - **Format coverage.** `check` validates the YAML subset used in skill frontmatter (`key: value`, quoted values, `>` and `|` blocks) and reports anything else as unsupported rather than guessing.
 

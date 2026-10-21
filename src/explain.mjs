@@ -58,7 +58,7 @@ export function formatExplain(spec, { brief = false } = {}) {
     out.push('Where each agent reads it');
     for (const a of d.agents) out.push(wrap(`- ${a.label}: ${a.reads}`, '  '));
     if (spec.agents.includes('cursor') && d.skillDirectories.length > 1) {
-      out.push(wrap('- Note: Cursor reads both skill directories, so each skill may appear twice in Cursor.', '  '));
+      out.push(wrap('- Note: Cursor can read both skill directories; the kit keeps the two copies identical, so whichever it loads says the same thing.', '  '));
     }
   }
   return out.join('\n');
