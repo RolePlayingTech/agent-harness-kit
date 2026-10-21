@@ -167,6 +167,24 @@ test('an untrusted lock cannot point outside the generated set', () => {
   assert.match(build(root).err, /not valid JSON/);
 });
 
+test('lock entries must use the matching output kind', () => {
+  for (const [rel, wrong] of [
+    ['AGENTS.md', 'file'],
+    ['CLAUDE.md', 'seed'],
+    ['docs/agent/decisions.md', 'file'],
+    ['.agents/skills/harness-maintenance/SKILL.md', 'block'],
+  ]) {
+    const root = project(NEXT_APP);
+    design(root, ['agents=codex']);
+    write(root, '.harness/lock.json', {
+      lockVersion: 1,
+      entries: { [rel]: { kind: wrong, sha256: 'a'.repeat(64) } },
+    });
+    assert.match(cli(['remove', root]).err, /expected kind/);
+    assert.match(build(root).err, /expected kind/);
+  }
+});
+
 test('symlinked output directories are refused before any write', (t) => {
   const root = project(NEXT_APP);
   const outside = project({});
