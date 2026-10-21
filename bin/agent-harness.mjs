@@ -15,36 +15,82 @@ import {
   TESTING_PROFILES,
 } from '../src/profiles.mjs';
 
+const KNOWN_COMMANDS = new Set([
+  'help',
+  'inspect',
+  'plan',
+  'init',
+  'audit',
+  'verify',
+  'doctor',
+  'autotrigger',
+  'update',
+  'uninstall',
+]);
+
+const KNOWN_FLAGS = new Set([
+  'provider',
+  'adapters',
+  'testing',
+  'profile',
+  'context',
+  'policy',
+  'archetype',
+  'blueprint',
+  'dry-run',
+  'force',
+  'strict',
+  'max-lines',
+  'json',
+  'help',
+  'version',
+]);
+
+const POLICY_ALIASES = {
+  strict: 'minimal',
+  expansive: 'deep-research',
+};
+
 function parseArgs(argv) {
   const args = argv.slice(2);
   const flags = {};
   const positionals = [];
+  const unknownFlags = [];
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a.startsWith('--')) {
       const eqIdx = a.indexOf('=');
+      let key;
+      let val;
       if (eqIdx !== -1) {
-        flags[a.slice(2, eqIdx)] = a.slice(eqIdx + 1);
+        key = a.slice(2, eqIdx);
+        val = a.slice(eqIdx + 1);
       } else {
-        const key = a.slice(2);
+        key = a.slice(2);
         const next = args[i + 1];
         if (next && !next.startsWith('-')) {
-          flags[key] = next;
+          val = next;
           i++;
         } else {
-          flags[key] = true;
+          val = true;
         }
       }
+      if (!KNOWN_FLAGS.has(key)) {
+        unknownFlags.push(`--${key}`);
+      }
+      flags[key] = val;
     } else if (a === '-h') {
       flags.help = true;
     } else if (a === '-v') {
       flags.version = true;
+    } else if (a.startsWith('-')) {
+      unknownFlags.push(a);
     } else {
       positionals.push(a);
     }
   }
-  return { command: positionals[0] || 'help', target: positionals[1] || '.', flags };
+  return { command: positionals[0] || 'help', target: positionals[1] || '.', flags, unknownFlags };
 }
 
 function printHelp() {
@@ -65,19 +111,20 @@ Commands:
   uninstall [dir]   Remove only unmodified files managed by agent-harness-kit
 
 Options:
-  --provider <id>   Platform profile: universal (default) | antigravity | claude | codex | cursor
-  --testing <id>    Testing vs Context profile: fast-prototype | smart-tiered (default) | isolated-verifier | mission-critical
-  --context <id>    Context budget policy: minimal | balanced (default) | deep-research | low-cost
-  --archetype <id>  Stack advisor archetype for 'plan': saas-web | content-seo-marketing | api-backend-service
-  --blueprint       Generate full durable project blueprint (docs/PROJECT_BRIEF.md, ARCHITECTURE.md, ADR, ROADMAP.md, feature_list.json, HANDOFF.md)
-  --dry-run         Preview planned file changes without modifying disk
-  --force           Overwrite existing conflicting files during init/update
-  --json            Output machine-readable JSON diagnostics
-  --help, -h        Show this help message
+  --provider, --adapters <id>   Platform profile: universal (default) | antigravity | claude | codex | cursor
+  --testing, --profile <id>     Testing vs Context profile: fast-prototype | smart-tiered (default) | isolated-verifier | mission-critical
+  --context, --policy <id>      Context budget policy: minimal | balanced (default) | deep-research | low-cost
+  --archetype <id>              Stack advisor archetype for 'plan': saas-web | content-seo-marketing | api-backend-service
+  --blueprint                   Generate full durable project blueprint (docs/PROJECT_BRIEF.md, ARCHITECTURE.md, ADR, ROADMAP.md, feature_list.json, HANDOFF.md)
+  --dry-run                     Preview planned file changes without modifying disk
+  --force                       Overwrite existing conflicting files during init/update
+  --strict                      Enforce strict pass/fail exit code in verify
+  --json                        Output machine-readable JSON diagnostics
+  --help, -h                    Show this help message
 `);
 }
 
-const { command, target, flags } = parseArgs(process.argv);
+const { command, target, flags, unknownFlags } = parseArgs(process.argv);
 const targetDir = resolve(target);
 
 if (flags.version) {
@@ -88,6 +135,43 @@ if (flags.version) {
 if (flags.help || command === 'help') {
   printHelp();
   process.exit(0);
+}
+
+function failCli(message) {
+  if (flags.json) {
+    console.log(JSON.stringify({ passed: false, error: message }, null, 2));
+  } else {
+    console.error(`Error: ${message}\nRun \`agent-harness --help\` for supported commands and options.`);
+  }
+  process.exit(1);
+}
+
+if (!KNOWN_COMMANDS.has(command)) {
+  failCli(`Unknown command "${command}". Supported commands: ${[...KNOWN_COMMANDS].join(', ')}.`);
+}
+
+if (unknownFlags.length > 0) {
+  failCli(`Unrecognized option(s): ${unknownFlags.join(', ')}.`);
+}
+
+// Resolve documented flag aliases (`--profile` -> `--testing`, `--policy` -> `--context`, `--adapters` -> `--provider`)
+const rawTesting = flags.testing ?? flags.profile ?? 'smart-tiered';
+const rawContext = flags.context ?? flags.policy ?? 'balanced';
+const resolvedContext = POLICY_ALIASES[rawContext] || rawContext;
+const rawProvider = flags.provider ?? flags.adapters ?? 'universal';
+const resolvedProvider = String(rawProvider).includes(',') ? 'universal' : rawProvider;
+
+if (!Object.prototype.hasOwnProperty.call(TESTING_PROFILES, rawTesting)) {
+  failCli(`Invalid testing profile "${rawTesting}". Allowed: ${Object.keys(TESTING_PROFILES).join(', ')}.`);
+}
+if (!Object.prototype.hasOwnProperty.call(CONTEXT_POLICIES, resolvedContext)) {
+  failCli(`Invalid context policy "${rawContext}". Allowed: ${Object.keys(CONTEXT_POLICIES).join(', ')}.`);
+}
+if (!Object.prototype.hasOwnProperty.call(PLATFORM_ADAPTERS, resolvedProvider)) {
+  failCli(`Invalid provider "${rawProvider}". Allowed: ${Object.keys(PLATFORM_ADAPTERS).join(', ')}.`);
+}
+if (flags.archetype && !Object.prototype.hasOwnProperty.call(STACK_ADVISOR_CATALOG, flags.archetype)) {
+  failCli(`Invalid archetype "${flags.archetype}". Allowed: ${Object.keys(STACK_ADVISOR_CATALOG).join(', ')}.`);
 }
 
 if (command === 'inspect') {
@@ -156,9 +240,9 @@ if (command === 'plan') {
 
 if (command === 'init' || command === 'update') {
   const result = installHarness(targetDir, {
-    provider: flags.provider || 'universal',
-    testing: flags.testing || 'smart-tiered',
-    context: flags.context || 'balanced',
+    provider: resolvedProvider,
+    testing: rawTesting,
+    context: resolvedContext,
     blueprint: Boolean(flags.blueprint),
     dryRun: Boolean(flags['dry-run']),
     force: Boolean(flags.force),
@@ -222,7 +306,7 @@ if (command === 'verify' || command === 'audit' || command === 'doctor') {
   const mode = command === 'doctor' ? 'doctor' : command === 'audit' ? 'audit' : 'verify';
   const report = auditHarness(targetDir, {
     mode,
-    policy: flags.context || 'balanced',
+    policy: resolvedContext,
     maxRootLines: flags['max-lines'],
   });
 

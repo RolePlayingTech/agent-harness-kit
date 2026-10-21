@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { validateSkillMarkdown } from './yaml-validator.mjs';
-import { CONTEXT_POLICIES } from './profiles.mjs';
+import { CONTEXT_POLICIES, TESTING_PROFILES } from './profiles.mjs';
 import { inspectWorkspace } from './detector.mjs';
 
 const VALID_TASK_STATUSES = new Set([
@@ -15,6 +15,28 @@ const VALID_TASK_STATUSES = new Set([
   'blocked',
   'failed',
   'verified',
+]);
+
+const ALLOWED_LEDGER_TOP_KEYS = new Set([
+  '$schema',
+  'project',
+  'harnessVersion',
+  'mode',
+  'testingProfile',
+  'contextPolicy',
+  'updatedAt',
+  'features',
+]);
+
+const ALLOWED_FEATURE_ITEM_KEYS = new Set([
+  'id',
+  'title',
+  'status',
+  'dependencies',
+  'verificationCommand',
+  'verificationEvidence',
+  'nextAction',
+  'notes',
 ]);
 
 /**
@@ -308,36 +330,84 @@ export function auditHarness(targetDir, options = {}) {
     }
   }
 
-  // 3. Validate feature_list.json if present (Fixes Issue #15 & #12)
+  // 3. Validate feature_list.json against canonical schema if present (Fixes Issue #15, #12, #23)
   const ledgerPath = join(targetDir, 'feature_list.json');
   if (existsSync(ledgerPath)) {
     try {
       const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
-      if (!Array.isArray(ledger.features)) {
-        addFinding('error', 'INVALID_FEATURE_LEDGER', 'feature_list.json', '`features` array is missing in feature_list.json.');
+      if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) {
+        addFinding('error', 'INVALID_FEATURE_LEDGER', 'feature_list.json', 'feature_list.json root must be a JSON object.');
       } else {
-        for (const feat of ledger.features) {
-          if (!feat.id || !feat.title || !feat.status) {
-            addFinding('error', 'INVALID_FEATURE_ITEM', 'feature_list.json', `Feature entry is missing required fields (id, title, status).`);
-            continue;
+        for (const reqKey of ['project', 'testingProfile', 'contextPolicy', 'features']) {
+          if (!Object.prototype.hasOwnProperty.call(ledger, reqKey)) {
+            addFinding('error', 'SCHEMA_MISSING_REQUIRED', 'feature_list.json', `Missing required top-level field "${reqKey}" in feature_list.json.`);
           }
-          if (!VALID_TASK_STATUSES.has(feat.status)) {
-            addFinding(
-              'error',
-              'INVALID_FEATURE_STATUS',
-              'feature_list.json',
-              `Feature "${feat.id}" has invalid status "${feat.status}". Allowed: ${[...VALID_TASK_STATUSES].join(', ')}.`,
-              'Use "pending" for unstarted work and "verified" only when backed by test evidence.'
-            );
+        }
+        for (const key of Object.keys(ledger)) {
+          if (!ALLOWED_LEDGER_TOP_KEYS.has(key)) {
+            addFinding('error', 'SCHEMA_ADDITIONAL_PROPERTY', 'feature_list.json', `Unknown top-level property "${key}" in feature_list.json.`);
           }
-          if (feat.status === 'verified' && !feat.verificationEvidence) {
-            addFinding(
-              'error',
-              'UNPROVEN_VERIFIED_TASK',
-              'feature_list.json',
-              `Feature "${feat.id}" is marked "verified" without "verificationEvidence" (Default-FAIL violation).`,
-              'Run the verification command and record the exit code/evidence, or set status to "pending".'
-            );
+        }
+        if (ledger.testingProfile && !Object.prototype.hasOwnProperty.call(TESTING_PROFILES, ledger.testingProfile)) {
+          addFinding('error', 'SCHEMA_INVALID_ENUM', 'feature_list.json', `Invalid testingProfile "${ledger.testingProfile}". Allowed: ${Object.keys(TESTING_PROFILES).join(', ')}.`);
+        }
+        if (ledger.contextPolicy && !Object.prototype.hasOwnProperty.call(CONTEXT_POLICIES, ledger.contextPolicy)) {
+          addFinding('error', 'SCHEMA_INVALID_ENUM', 'feature_list.json', `Invalid contextPolicy "${ledger.contextPolicy}". Allowed: ${Object.keys(CONTEXT_POLICIES).join(', ')}.`);
+        }
+        if (typeof ledger.$schema === 'string' && ledger.$schema.startsWith('.')) {
+          const schemaPath = join(targetDir, ledger.$schema);
+          if (!existsSync(schemaPath)) {
+            addFinding('error', 'MISSING_REFERENCED_SCHEMA', 'feature_list.json', `Referenced local $schema "${ledger.$schema}" does not exist on disk.`);
+          }
+        }
+        if (!Array.isArray(ledger.features) || ledger.features.length === 0) {
+          addFinding('error', 'INVALID_FEATURE_LEDGER', 'feature_list.json', '`features` must be a non-empty array in feature_list.json.');
+        } else {
+          for (const feat of ledger.features) {
+            if (!feat || typeof feat !== 'object' || Array.isArray(feat)) {
+              addFinding('error', 'INVALID_FEATURE_ITEM', 'feature_list.json', 'Each feature entry must be an object.');
+              continue;
+            }
+            for (const fKey of Object.keys(feat)) {
+              if (!ALLOWED_FEATURE_ITEM_KEYS.has(fKey)) {
+                addFinding('error', 'SCHEMA_ADDITIONAL_PROPERTY', 'feature_list.json', `Feature "${feat.id || '?'}" has disallowed property "${fKey}".`);
+              }
+            }
+            if (!feat.id || !feat.title || !feat.status) {
+              addFinding(
+                'error',
+                'INVALID_FEATURE_ITEM',
+                'feature_list.json',
+                `Feature entry "${feat.id || '?'}" is missing required fields (id, title, status).`
+              );
+              continue;
+            }
+            if (!feat.verificationCommand) {
+              addFinding(
+                'error',
+                'SCHEMA_MISSING_REQUIRED',
+                'feature_list.json',
+                `Feature "${feat.id}" is missing required field "verificationCommand".`
+              );
+            }
+            if (!VALID_TASK_STATUSES.has(feat.status)) {
+              addFinding(
+                'error',
+                'INVALID_FEATURE_STATUS',
+                'feature_list.json',
+                `Feature "${feat.id}" has invalid status "${feat.status}". Allowed: ${[...VALID_TASK_STATUSES].join(', ')}.`,
+                'Use "pending" for unstarted work and "verified" only when backed by test evidence.'
+              );
+            }
+            if (feat.status === 'verified' && !feat.verificationEvidence) {
+              addFinding(
+                'error',
+                'UNPROVEN_VERIFIED_TASK',
+                'feature_list.json',
+                `Feature "${feat.id}" is marked "verified" without "verificationEvidence" (Default-FAIL violation).`,
+                'Run the verification command and record the exit code/evidence, or set status to "pending".'
+              );
+            }
           }
         }
       }

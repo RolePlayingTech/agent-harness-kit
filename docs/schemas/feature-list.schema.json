@@ -4,7 +4,7 @@
   "title": "AI Agent Harness Feature & Task Ledger",
   "description": "Default-FAIL task ledger schema for multi-session AI coding agents. Every feature starts as 'pending' and transitions to 'verified' only after deterministic command execution.",
   "type": "object",
-  "required": ["project", "features"],
+  "required": ["project", "testingProfile", "contextPolicy", "features"],
   "properties": {
     "$schema": {
       "type": "string"
@@ -13,9 +13,13 @@
       "type": "string",
       "minLength": 1
     },
+    "harnessVersion": {
+      "type": "string",
+      "minLength": 1
+    },
     "mode": {
       "type": "string",
-      "enum": ["greenfield", "brownfield", "monorepo"]
+      "enum": ["greenfield", "brownfield", "brownfield-monorepo"]
     },
     "testingProfile": {
       "type": "string",
@@ -23,11 +27,7 @@
     },
     "contextPolicy": {
       "type": "string",
-      "enum": ["strict", "balanced", "expansive"]
-    },
-    "securityTier": {
-      "type": "string",
-      "enum": ["tier-0-readonly", "tier-1-workspace-safe", "tier-2-network-dev", "tier-3-human-gated"]
+      "enum": ["minimal", "balanced", "deep-research", "low-cost"]
     },
     "updatedAt": {
       "type": "string"
@@ -37,7 +37,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "title", "status", "verification"],
+        "required": ["id", "title", "status", "verificationCommand"],
         "properties": {
           "id": {
             "type": "string",
@@ -49,17 +49,27 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "in_progress", "verified", "blocked"],
-            "description": "Default-FAIL state. Must remain 'pending' or 'in_progress' until verification command exits with code 0."
+            "enum": ["pending", "in_progress", "blocked", "failed", "verified"],
+            "description": "Default-FAIL state. Must remain 'pending' or 'in_progress' until verificationCommand exits with code 0."
           },
-          "verification": {
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z0-9-]+$"
+            }
+          },
+          "verificationCommand": {
             "type": "string",
-            "minLength": 3,
-            "description": "Exact deterministic command or check required to prove completion."
+            "minLength": 2,
+            "description": "Exact deterministic command required to prove completion."
           },
-          "verifiedAt": {
-            "type": ["string", "null"],
-            "description": "ISO-8601 timestamp recorded only after the verification command passes."
+          "verificationEvidence": {
+            "type": ["null", "string", "object"],
+            "description": "Recorded only after verificationCommand exits 0."
+          },
+          "nextAction": {
+            "type": "string"
           },
           "notes": {
             "type": "string"
@@ -69,5 +79,5 @@
       }
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

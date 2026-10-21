@@ -14,42 +14,105 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectWorkspace } from './detector.mjs';
 import { CONTEXT_POLICIES, PLATFORM_ADAPTERS, TESTING_PROFILES } from './profiles.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const KIT_ROOT = resolve(__dirname, '..');
-export const KIT_VERSION = '2.0.0';
+export const KIT_VERSION = '2.0.1';
 const MANIFEST_REL_PATH = '.agents/harness-manifest.json';
 
 export function sha256(content) {
   return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
-function assertSafeTargetPath(targetRoot, fullDest) {
+/**
+ * Validates that a relative path has no traversal segments, absolute prefixes, or null bytes (Fixes Issue #21).
+ */
+export function normalizeSafeRelPath(relPath) {
+  if (typeof relPath !== 'string' || !relPath.trim() || relPath.includes('\0')) {
+    throw new Error(`Security violation: Invalid or empty relative path (${JSON.stringify(relPath)}).`);
+  }
+  const normalized = relPath.replaceAll('\\', '/').trim();
+  if (
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:/.test(normalized) ||
+    isAbsolute(relPath)
+  ) {
+    throw new Error(`Security violation: Absolute paths are forbidden in managed files (${relPath}).`);
+  }
+  const parts = normalized.split('/');
+  for (const part of parts) {
+    if (!part || part === '.' || part === '..') {
+      throw new Error(`Security violation: Path traversal or empty segment in "${relPath}".`);
+    }
+  }
+  return parts.join('/');
+}
+
+/**
+ * Enforces strict root containment and verifies that neither target nor any ancestor directory is a symlink (Fixes Issue #21).
+ */
+export function assertSafeTargetPath(targetRoot, fullDest, relPathHint = '') {
+  if (relPathHint) {
+    normalizeSafeRelPath(relPathHint);
+  }
   const resolvedRoot = resolve(targetRoot);
   const resolvedDest = resolve(fullDest);
-  if (!resolvedDest.startsWith(resolvedRoot)) {
-    throw new Error(`Security violation: Path traversal detected outside target root (${fullDest}).`);
+  const relFromRoot = relative(resolvedRoot, resolvedDest);
+
+  if (
+    !relFromRoot ||
+    relFromRoot === '.' ||
+    relFromRoot.startsWith('..') ||
+    isAbsolute(relFromRoot)
+  ) {
+    throw new Error(`Security violation: Path escapes target root (${fullDest} outside ${resolvedRoot}).`);
   }
-  if (existsSync(resolvedDest)) {
-    const lst = lstatSync(resolvedDest);
-    if (lst.isSymbolicLink()) {
-      throw new Error(`Security violation: Refusing to overwrite symbolic link (${fullDest}).`);
+
+  // Check root itself if it exists
+  if (existsSync(resolvedRoot) && lstatSync(resolvedRoot).isSymbolicLink()) {
+    throw new Error(`Security violation: Target root itself is a symbolic link (${resolvedRoot}).`);
+  }
+
+  // Walk every ancestor segment from resolvedRoot to resolvedDest and reject any symlink/junction
+  const segments = relFromRoot.replaceAll('\\', '/').split('/');
+  let current = resolvedRoot;
+  for (const seg of segments) {
+    current = join(current, seg);
+    if (existsSync(current)) {
+      const lst = lstatSync(current);
+      if (lst.isSymbolicLink()) {
+        throw new Error(`Security violation: Symbolic link detected along target path (${current}).`);
+      }
     }
   }
 }
 
 function loadManifest(targetRoot) {
-  const p = join(targetRoot, MANIFEST_REL_PATH);
+  const resolvedRoot = resolve(targetRoot);
+  const p = join(resolvedRoot, MANIFEST_REL_PATH);
+  assertSafeTargetPath(resolvedRoot, p, MANIFEST_REL_PATH);
   if (!existsSync(p)) return null;
+  let parsed;
   try {
-    return JSON.parse(readFileSync(p, 'utf8'));
-  } catch {
-    return null;
+    parsed = JSON.parse(readFileSync(p, 'utf8'));
+  } catch (e) {
+    throw new Error(`Integrity violation: Corrupted JSON in ${MANIFEST_REL_PATH} (${e.message}). Refuse to proceed with unsafe manifest.`);
   }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || typeof parsed.managedFiles !== 'object' || !parsed.managedFiles || Array.isArray(parsed.managedFiles)) {
+    throw new Error(`Integrity violation: ${MANIFEST_REL_PATH} is missing a valid "managedFiles" object.`);
+  }
+  for (const [relKey, meta] of Object.entries(parsed.managedFiles)) {
+    normalizeSafeRelPath(relKey);
+    assertSafeTargetPath(resolvedRoot, join(resolvedRoot, relKey), relKey);
+    if (!meta || typeof meta.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(meta.sha256)) {
+      throw new Error(`Integrity violation: Invalid sha256 checksum for "${relKey}" in ${MANIFEST_REL_PATH}.`);
+    }
+  }
+  return parsed;
 }
 
 function collectKitSkillFiles() {
@@ -76,6 +139,9 @@ function collectKitSkillFiles() {
 }
 
 export function buildAgentsMdContent(recon, options = {}) {
+  const providerId = options.provider || 'universal';
+  const adapter = PLATFORM_ADAPTERS[providerId] || PLATFORM_ADAPTERS.universal;
+  const primarySkillDir = adapter.skillDirs[0] || '.agents/skills';
   const testingProfile = TESTING_PROFILES[options.testing || 'smart-tiered'] || TESTING_PROFILES['smart-tiered'];
   const contextPolicy = CONTEXT_POLICIES[options.context || 'balanced'] || CONTEXT_POLICIES.balanced;
   const stackSummary =
@@ -98,7 +164,7 @@ export function buildAgentsMdContent(recon, options = {}) {
 - **Mode:** ${recon.mode === 'greenfield' ? 'Greenfield Project' : 'Existing Repository (Brownfield)'}
 - **Stack:** ${stackSummary}
 - **Key Directories:** ${dirSummary}
-- **Active Profiles:** Testing=\`${testingProfile.id}\` | Context=\`${contextPolicy.id}\` (Max ${contextPolicy.maxRootLines} root lines)
+- **Active Profiles:** Provider=\`${adapter.id}\` | Testing=\`${testingProfile.id}\` | Context=\`${contextPolicy.id}\` (Max ${contextPolicy.maxRootLines} root lines)
 
 ## 2. Deterministic Verification Loop (Default-FAIL Contract)
 1. **Static / Type Sensor:** \`${typeCmd}\`
@@ -113,13 +179,13 @@ export function buildAgentsMdContent(recon, options = {}) {
 - **Session Handoff:** Track multi-session tasks in \`feature_list.json\` and \`HANDOFF.md\`.
 
 ## 4. Progressive Disclosure Map (Load Just-In-Time)
-- Dual-mode project wizard & interview → \`.agents/skills/harness-architect/SKILL.md\`
-- Greenfield MVP & stack trade-off advisor → \`.agents/skills/greenfield-advisor/SKILL.md\`
-- Brownfield repo discovery & safe adoption → \`.agents/skills/brownfield-onboarder/SKILL.md\`
-- Testing depth vs. context token trade-offs → \`.agents/skills/testing-tradeoffs/SKILL.md\`
-- Context crisis playbooks & subagents → \`.agents/skills/context-hygiene/SKILL.md\`
-- Default-FAIL gates & circuit breaker → \`.agents/skills/verification-loop/SKILL.md\`
-- Recursive harness evolution (Harness² c1..c8) → \`.agents/skills/recursive-refiner/SKILL.md\`
+- Dual-mode project wizard & interview → \`${primarySkillDir}/harness-architect/SKILL.md\`
+- Greenfield MVP & stack trade-off advisor → \`${primarySkillDir}/greenfield-advisor/SKILL.md\`
+- Brownfield repo discovery & safe adoption → \`${primarySkillDir}/brownfield-onboarder/SKILL.md\`
+- Testing depth vs. context token trade-offs → \`${primarySkillDir}/testing-tradeoffs/SKILL.md\`
+- Context crisis playbooks & subagents → \`${primarySkillDir}/context-hygiene/SKILL.md\`
+- Default-FAIL gates & circuit breaker → \`${primarySkillDir}/verification-loop/SKILL.md\`
+- Recursive harness evolution (Harness² c1..c8) → \`${primarySkillDir}/recursive-refiner/SKILL.md\`
 
 ## 5. Hard Guardrails (Red Lines — Require Human Confirmation)
 - NEVER push directly to \`main\`, deploy to production, or run destructive DB migrations without explicit \`Prepare -> Confirm\` human sign-off.
@@ -324,6 +390,10 @@ export function installHarness(targetDir, options = {}) {
     for (const [relPath, content] of Object.entries(bp)) {
       plannedFiles.set(relPath, content);
     }
+    const schemaSrcPath = join(KIT_ROOT, 'docs', 'schemas', 'feature-list.schema.json');
+    if (existsSync(schemaSrcPath)) {
+      plannedFiles.set('docs/schemas/feature-list.schema.json', readFileSync(schemaSrcPath, 'utf8'));
+    }
   }
 
   const created = [];
@@ -334,7 +404,7 @@ export function installHarness(targetDir, options = {}) {
 
   for (const [relPath, content] of plannedFiles.entries()) {
     const fullDest = join(resolvedRoot, relPath);
-    assertSafeTargetPath(resolvedRoot, fullDest);
+    assertSafeTargetPath(resolvedRoot, fullDest, relPath);
     const nextHash = sha256(content);
 
     if (!existsSync(fullDest)) {
@@ -433,7 +503,7 @@ export function uninstallHarness(targetDir, options = {}) {
 
   for (const [relPath, meta] of Object.entries(manifest.managedFiles)) {
     const full = join(resolvedRoot, relPath);
-    assertSafeTargetPath(resolvedRoot, full);
+    assertSafeTargetPath(resolvedRoot, full, relPath);
     if (!existsSync(full)) {
       missing.push(relPath);
       continue;

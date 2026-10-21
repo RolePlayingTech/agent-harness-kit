@@ -5,7 +5,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -13,7 +13,7 @@ import { execFileSync } from 'node:child_process';
 import { validateSkillMarkdown } from '../src/yaml-validator.mjs';
 import { inspectWorkspace } from '../src/detector.mjs';
 import { auditHarness, autotriggerSkills } from '../src/auditor.mjs';
-import { installHarness, uninstallHarness, KIT_ROOT } from '../src/installer.mjs';
+import { installHarness, uninstallHarness, assertSafeTargetPath, KIT_ROOT } from '../src/installer.mjs';
 
 function makeTempDir(prefix = 'harness-test-') {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -270,6 +270,121 @@ describe('5. Google Research Harness² Standards (Untriggered Skills, Autotrigge
       assert.ok(report.findings.some((f) => f.code === 'HOOKS_UNSUPPORTED_TYPE'));
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('6. v2.0.1 Stabilization Regressions (Issues #21, #23, #24, #25)', () => {
+  test('Issue #21: prevents prefix-sibling path escapes, ancestor symlink writes, and hostile manifest traversal', () => {
+    const baseDir = makeTempDir('sec-root-');
+    const siblingDir = `${baseDir}-copy`;
+    mkdirSync(siblingDir, { recursive: true });
+    const outsideVictim = join(siblingDir, 'owned.txt');
+    writeFileSync(outsideVictim, 'DO NOT DELETE OR OVERWRITE', 'utf8');
+
+    try {
+      // 1. Prefix-sibling path attack must throw
+      assert.throws(() => {
+        assertSafeTargetPath(baseDir, outsideVictim);
+      }, /Security violation/);
+
+      // 2. Hostile manifest with ../ traversal must throw on uninstall and preserve outside file
+      mkdirSync(join(baseDir, '.agents'), { recursive: true });
+      writeFileSync(
+        join(baseDir, '.agents', 'harness-manifest.json'),
+        JSON.stringify({
+          kitName: 'agent-harness-kit',
+          managedFiles: {
+            '../sec-root-copy/owned.txt': {
+              sha256: 'a'.repeat(64),
+            },
+          },
+        }),
+        'utf8'
+      );
+      assert.throws(() => {
+        uninstallHarness(baseDir);
+      }, /Security violation/);
+      assert.equal(existsSync(outsideVictim), true);
+
+      // 3. Corrupted manifest JSON must fail safely instead of silently returning null
+      writeFileSync(join(baseDir, '.agents', 'harness-manifest.json'), '{ corrupted json', 'utf8');
+      assert.throws(() => {
+        installHarness(baseDir);
+      }, /Integrity violation/);
+
+      // 4. Ancestor symlink/junction attack must be rejected
+      rmSync(join(baseDir, '.agents'), { recursive: true, force: true });
+      let symlinkCreated = false;
+      try {
+        symlinkSync(siblingDir, join(baseDir, '.agents'), 'junction');
+        symlinkCreated = true;
+      } catch {
+        // Fallback if OS permissions disallow symlink creation
+      }
+      if (symlinkCreated) {
+        assert.throws(() => {
+          installHarness(baseDir);
+        }, /Security violation: Symbolic link detected/);
+      }
+    } finally {
+      rmSync(baseDir, { recursive: true, force: true });
+      rmSync(siblingDir, { recursive: true, force: true });
+    }
+  });
+
+  test('Issue #23: generated feature_list.json and copied schema pass strict validation across all policies', () => {
+    for (const policy of ['minimal', 'balanced', 'deep-research', 'low-cost']) {
+      const dir = makeTempDir(`schema-${policy}-`);
+      try {
+        installHarness(dir, { blueprint: true, context: policy, testing: 'smart-tiered' });
+        assert.equal(existsSync(join(dir, 'docs', 'schemas', 'feature-list.schema.json')), true);
+        const report = auditHarness(dir, { mode: 'verify', policy });
+        assert.equal(report.passed, true, `Failed for policy ${policy}: ${JSON.stringify(report.findings)}`);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('Issue #24: CLI supports documented flag aliases (--profile, --policy, --adapters) and rejects unknown flags', () => {
+    const dir = makeTempDir('cli-flags-');
+    const cliPath = join(KIT_ROOT, 'bin', 'agent-harness.mjs');
+    try {
+      const initOut = execFileSync(
+        'node',
+        [cliPath, 'init', dir, '--profile', 'isolated-verifier', '--policy', 'minimal', '--adapters', 'claude', '--json'],
+        { encoding: 'utf8' }
+      );
+      const parsed = JSON.parse(initOut);
+      assert.equal(parsed.testingProfile, 'isolated-verifier');
+      assert.equal(parsed.contextPolicy, 'minimal');
+      assert.equal(parsed.provider, 'claude');
+
+      // Unknown flag must exit nonzero
+      assert.throws(() => {
+        execFileSync('node', [cliPath, 'init', dir, '--nonexistent-flag'], { stdio: 'pipe' });
+      });
+
+      // Invalid profile enum must exit nonzero
+      assert.throws(() => {
+        execFileSync('node', [cliPath, 'init', dir, '--profile', 'not-a-valid-profile'], { stdio: 'pipe' });
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('Issue #25: every provider adapter (universal, claude, codex, cursor, antigravity) passes init -> verify roundtrip', () => {
+    for (const provider of ['universal', 'claude', 'codex', 'cursor', 'antigravity']) {
+      const dir = makeTempDir(`provider-${provider}-`);
+      try {
+        installHarness(dir, { provider });
+        const report = auditHarness(dir, { mode: 'verify' });
+        assert.equal(report.passed, true, `Provider ${provider} failed verify: ${JSON.stringify(report.findings)}`);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     }
   });
 });
