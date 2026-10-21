@@ -83,7 +83,9 @@ export function normalizeAnswers(raw = {}) {
   const out = {};
   for (const [key, value] of Object.entries(raw)) {
     if (value === undefined) continue;
-    if (['agents', 'approvals', 'stack'].includes(key)) out[key] = splitList(value);
+    // PowerShell turns an unquoted `agents=codex,claude` into the single argument "agents=codex claude".
+    if (key === 'agents') out[key] = splitList(typeof value === 'string' ? value.replace(/\s+/g, ',') : value);
+    else if (['approvals', 'stack'].includes(key)) out[key] = splitList(value);
     else if (key === 'rules') out[key] = Array.isArray(value) ? value.map(String).map((s) => s.trim()).filter(Boolean) : splitList(String(value).replaceAll('|', ','));
     else if (['fast', 'full', 'e2e'].includes(key)) out[key] = value === null || String(value).trim() === '' || String(value).trim() === 'none' ? null : String(value).trim();
     else if (key === 'overrides') out[key] = value;

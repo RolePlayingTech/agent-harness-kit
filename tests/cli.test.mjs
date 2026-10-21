@@ -24,6 +24,12 @@ test('design without an agent choice fails with a hint instead of guessing', () 
   assert.ok(!existsSync(join(root, '.harness/spec.json')));
 });
 
+test('an agent list split by PowerShell into spaces is accepted like a comma list', () => {
+  const root = project(NEXT_APP);
+  assert.equal(cli(['design', root, '--yes', '--set', 'agents=cursor claude']).code, 0);
+  assert.deepEqual(JSON.parse(read(root, '.harness/spec.json')).agents, ['cursor', 'claude']);
+});
+
 test('design without --yes in a non-interactive shell previews and writes nothing', () => {
   const root = project(NEXT_APP);
   const r = cli(['design', root, '--set', 'agents=codex']);
