@@ -153,6 +153,10 @@ export function checkHarness(targetDir, { run = false, timeoutSeconds = 900 } = 
     const missing = detected.filter((c) => !(v[role] || '').includes(c));
     if (missing.length && !v[role]) add('info', 'scan', `The repository now has ${missing.map((c) => `\`${c}\``).join(', ')}, but verification.${role} is empty. Re-run \`design\` to include it.`, SPEC_PATH);
   }
+  const recorded = spec.project.sensitive || {};
+  for (const s of scan.sensitive) {
+    if (!Object.hasOwn(recorded, s.id)) add('info', 'scan', `${s.label} found (${s.evidence}) after the spec was written. Re-run \`design\` so the harness accounts for it.`, SPEC_PATH);
+  }
   for (const note of scan.notes) add(note.level === 'warn' ? 'warn' : 'info', 'scan', note.message, note.evidence);
 
   const agentsText = readTextIfExists(join(root, 'AGENTS.md'));

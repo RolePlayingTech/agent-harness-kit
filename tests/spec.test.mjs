@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { KIT, NEXT_APP, build, cli, design, project, read, write } from './helpers.mjs';
 import { AGENTS, MEMORY, OVERRIDABLE_MODULES, RIGOR, SPEC_FIELDS, STAGES, loadSpec, validateSpec } from '../src/spec.mjs';
@@ -99,6 +99,38 @@ test('optional fields get defaults when the spec is loaded', () => {
   assert.deepEqual(loaded.spec.overrides, {});
   assert.equal(build(root).code, 0);
   assert.match(read(root, 'AGENTS.md'), /npx github:RolePlayingTech\/agent-harness-kit build/);
+});
+
+test('re-running design refreshes the layout but keeps hand-written entries that still exist', () => {
+  const root = project({ ...NEXT_APP, 'src/lib/a.ts': '', 'src/content/x.md': '' });
+  design(root, ['agents=codex']);
+  const spec = JSON.parse(read(root, '.harness/spec.json'));
+  spec.project.layout = spec.project.layout.map((l) => (l.path === 'src/app' ? { ...l, purpose: 'routes; keep them thin' } : l));
+  spec.project.layout.push({ path: 'src/server', purpose: 'tRPC routers' });
+  write(root, '.harness/spec.json', spec);
+  write(root, 'src/server/x.ts', '');
+  rmSync(join(root, 'src/lib'), { recursive: true });
+  write(root, 'scripts/seed.ts', '');
+  design(root, []);
+  const layout = JSON.parse(read(root, '.harness/spec.json')).project.layout;
+  const byPath = Object.fromEntries(layout.map((l) => [l.path, l.purpose]));
+  assert.equal(byPath['src/app'], 'routes; keep them thin', 'hand-written purpose kept');
+  assert.equal(byPath['src/server'], 'tRPC routers', 'hand-added entry kept while it exists');
+  assert.ok(byPath.scripts, 'new directory added');
+  assert.ok(!('src/lib' in byPath), 'deleted directory dropped');
+});
+
+test('a sensitive area that appears later is reported and added by design, earlier choices stay', () => {
+  const app = { ...NEXT_APP };
+  delete app['prisma/migrations/0001/migration.sql'];
+  const root = project(app);
+  design(root, ['agents=codex', 'approvals=push,deploy']);
+  write(root, 'prisma/migrations/0001/migration.sql', 'select 1;\n');
+  build(root);
+  assert.match(cli(['check', root]).out, /Database migrations found \(prisma\/migrations\) after the spec was written/);
+  design(root, []);
+  assert.deepEqual(JSON.parse(read(root, '.harness/spec.json')).approvals, ['push', 'deploy', 'migrations']);
+  assert.doesNotMatch(cli(['check', root]).out, /after the spec was written/);
 });
 
 test('every command refuses an invalid spec and names the field', () => {

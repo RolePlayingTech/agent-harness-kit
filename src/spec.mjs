@@ -97,13 +97,32 @@ export function normalizeAnswers(raw = {}) {
 export const ANSWER_KEYS = ['name', 'summary', 'stack', 'agents', 'rigor', 'fast', 'full', 'e2e', 'memory', 'approvals', 'rules', 'overrides'];
 
 /**
+ * The layout is a fact refreshed by every scan. Entries from the previous spec stay (with their
+ * possibly hand-written purpose) while the directory exists; directories found since are added.
+ */
+function mergeLayout(scan, previousLayout) {
+  if (!Array.isArray(previousLayout)) return scan.layout;
+  const stillThere = (path) => scan.layout.some((l) => l.path === path) || !scan.root || existsSync(join(scan.root, path));
+  const kept = previousLayout.filter((l) => stillThere(l.path));
+  const keptPaths = new Set(kept.map((l) => l.path));
+  return [...kept, ...scan.layout.filter((l) => !keptPaths.has(l.path))];
+}
+
+/**
  * Builds a spec from the scan, the defaults and the user's answers.
  * An existing spec supplies previous decisions so re-running design only changes what the user changes.
  */
 export function buildSpec(scan, answers = {}, previous = null) {
   const prior = previous ? answersFromSpec(previous) : {};
-  const a = { ...defaultAnswers(scan), ...prior, ...normalizeAnswers(answers) };
+  const given = normalizeAnswers(answers);
+  const a = { ...defaultAnswers(scan), ...prior, ...given };
   const sensitive = Object.fromEntries(scan.sensitive.map((s) => [s.id, s.paths.length ? s.paths : (s.deps || [])]));
+  if (previous && given.approvals === undefined) {
+    // Areas that appeared since the last design get the default treatment; earlier choices stay.
+    const known = previous.project?.sensitive || {};
+    const appeared = Object.keys(sensitive).filter((id) => !Object.hasOwn(known, id) && Object.hasOwn(APPROVALS, id) && !RISK_AREAS.includes(id));
+    a.approvals = [...new Set([...a.approvals, ...appeared])];
+  }
   return {
     $schema: SPEC_SCHEMA_URL,
     specVersion: 1,
@@ -112,7 +131,7 @@ export function buildSpec(scan, answers = {}, previous = null) {
       summary: a.summary,
       stage: scan.stage,
       stack: a.stack,
-      layout: previous?.project?.layout ?? scan.layout,
+      layout: mergeLayout(scan, previous?.project?.layout),
       packageManager: scan.packageManager,
       testFrameworks: scan.testFrameworks,
       workspaces: scan.workspaces.map((w) => w.path),
