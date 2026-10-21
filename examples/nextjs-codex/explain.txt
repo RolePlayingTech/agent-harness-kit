@@ -9,8 +9,8 @@ Included
         applies to most tasks.
         Files: AGENTS.md
   [on]  Definition of done (standard)
-        Why: You chose standard rigor: catch regressions before a task is reported done without
-        running the whole suite after every edit.
+        Why: Standard rigor: catch regressions before a task is reported done, without running
+        the whole suite after every edit.
         Cost: A regression found by the full suite surfaces at the end of a task rather than
         right after the edit that caused it.
         Files: AGENTS.md

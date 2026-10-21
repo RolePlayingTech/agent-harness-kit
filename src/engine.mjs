@@ -67,9 +67,9 @@ export function deriveModules(spec) {
     agents.has('claude') ? ['CLAUDE.md'] : []));
 
   const rigorWhy = {
-    light: 'You chose light rigor: suited to prototypes where speed matters more than catching every regression.',
-    standard: 'You chose standard rigor: catch regressions before a task is reported done without running the whole suite after every edit.',
-    strict: 'You chose strict rigor: changes in this project are costly to get wrong, so evidence matters more than speed.',
+    light: 'Light rigor: suited to prototypes, where speed matters more than catching every regression.',
+    standard: 'Standard rigor: catch regressions before a task is reported done, without running the whole suite after every edit.',
+    strict: 'Strict rigor: mistakes here are costly, so evidence matters more than speed.',
   }[v.rigor];
   const rigorTradeoff = {
     light: 'Regressions that only the full suite catches can reach review; run it before merging.',

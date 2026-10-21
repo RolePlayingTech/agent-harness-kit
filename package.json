@@ -14,7 +14,7 @@
     "schema"
   ],
   "scripts": {
-    "test": "node --test tests/engine.test.mjs tests/build.test.mjs tests/check.test.mjs tests/cli.test.mjs tests/examples.test.mjs",
+    "test": "node --test tests/engine.test.mjs tests/build.test.mjs tests/check.test.mjs tests/cli.test.mjs tests/interview.test.mjs tests/examples.test.mjs tests/docs.test.mjs",
     "examples": "node scripts/examples.mjs",
     "check": "node bin/agent-harness.mjs check ."
   },

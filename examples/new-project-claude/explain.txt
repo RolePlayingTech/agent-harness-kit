@@ -14,9 +14,9 @@ Included
         Cost: None beyond one extra file; Claude-specific notes can go below the managed block.
         Files: CLAUDE.md
   [on]  Definition of done (light)
-        Why: You chose light rigor: suited to prototypes where speed matters more than catching
-        every regression. No check command is set yet, so the agent is told to say what it could
-        not verify.
+        Why: Light rigor: suited to prototypes, where speed matters more than catching every
+        regression. No check command is set yet, so the agent is told to say what it could not
+        verify.
         Cost: Regressions that only the full suite catches can reach review; run it before
         merging.
         Files: AGENTS.md

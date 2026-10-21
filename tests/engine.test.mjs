@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scanRepository } from '../src/scan.mjs';
-import { buildSpec, validateSpec } from '../src/spec.mjs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { AGENTS, MEMORY, OVERRIDABLE_MODULES, RIGOR, SPEC_SCHEMA_URL, buildSpec, validateSpec } from '../src/spec.mjs';
 import { deriveModules, skillDirs } from '../src/engine.mjs';
 import { renderOutputs } from '../src/render.mjs';
-import { NEXT_APP, project } from './helpers.mjs';
+import { KIT, NEXT_APP, project } from './helpers.mjs';
 
 const specFor = (files, answers) => buildSpec(scanRepository(project(files)), answers);
 const enabled = (spec) => deriveModules(spec).filter((m) => m.enabled).map((m) => m.id);
@@ -114,6 +116,15 @@ test('every module explains itself, and derivation is deterministic', () => {
     assert.ok(m.tradeoff.length > 10, `${m.id} tradeoff`);
     if (m.enabled) assert.ok(m.files.length > 0, `${m.id} files`);
   }
+});
+
+test('the shipped JSON Schema lists the same choices as the validator', () => {
+  const schema = JSON.parse(readFileSync(join(KIT, 'schema', 'spec.schema.json'), 'utf8'));
+  assert.deepEqual(schema.properties.agents.items.enum, Object.keys(AGENTS));
+  assert.deepEqual(schema.properties.verification.properties.rigor.enum, Object.keys(RIGOR));
+  assert.deepEqual(schema.properties.memory.enum, Object.keys(MEMORY));
+  assert.deepEqual(schema.properties.overrides.propertyNames.enum, OVERRIDABLE_MODULES);
+  assert.equal(schema.$id, SPEC_SCHEMA_URL);
 });
 
 test('spec validation rejects malformed decisions', () => {

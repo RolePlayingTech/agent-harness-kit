@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanRepository } from '../src/scan.mjs';
 import { ANSWER_KEYS, DEFAULT_CLI, answersFromSpec, KIT_VERSION, SPEC_PATH, buildSpec, defaultAnswers, loadSpec, serializeSpec, validateSpec } from '../src/spec.mjs';
@@ -131,7 +131,8 @@ function diffs(ops) {
 }
 
 function scanText(s) {
-  const lines = [`${s.root}`, `  ${s.stage === 'new' ? 'New project: no code or manifests found' : `Existing project: ${s.stack.join(', ') || 'stack not recognized'}`}`, `  Source files: ${s.size.sourceFiles}${s.size.truncated ? '+ (scan stopped early)' : ''}`];
+  const shown = relative(process.cwd(), s.root).replaceAll('\\', '/');
+  const lines = [shown && !shown.startsWith('..') && !isAbsolute(shown) ? shown : s.root, `  ${s.stage === 'new' ? 'New project: no code or manifests found' : `Existing project: ${s.stack.join(', ') || 'stack not recognized'}`}`, `  Source files: ${s.size.sourceFiles}${s.size.truncated ? '+ (scan stopped early)' : ''}`];
   for (const role of ['fast', 'full', 'e2e', 'build']) {
     for (const c of s.commands[role]) lines.push(`  ${role.padEnd(5)} ${c.cmd}  [${c.confidence}: ${c.evidence}]`);
   }

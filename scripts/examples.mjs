@@ -49,6 +49,22 @@ export function generateExample(name) {
   }
 }
 
+const EMBED = /(<!-- (embed|run): ([^>]+?) -->\n)```(\w*)\n[\s\S]*?```\n(<!-- \/\2 -->)/g;
+
+/** Content for an embed marker: a file under the kit, or the output of a CLI command run from the kit root. */
+function embedContent(kind, arg) {
+  if (kind === 'embed') return readFileSync(join(KIT, arg), 'utf8').replace(/\r\n/g, '\n');
+  return cli(arg.split(' '), KIT).replace(/\r\n/g, '\n');
+}
+
+/** Returns README text with every embed refreshed from the current code. */
+export function renderReadme(text) {
+  return text.replace(/\r\n/g, '\n').replace(EMBED, (_, open, kind, arg, lang, close) => {
+    const body = embedContent(kind, arg.trim());
+    return `${open}\`\`\`${lang}\n${body.endsWith('\n') ? body : `${body}\n`}\`\`\`\n${close}`;
+  });
+}
+
 export function exampleNames() {
   return readdirSync(join(KIT, 'examples')).filter((n) => existsSync(join(KIT, 'examples', n, 'answers.json'))).sort();
 }
@@ -65,4 +81,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     writeFileSync(join(KIT, 'examples', name, 'explain.txt'), explain);
     console.log(`${name}: ${Object.keys(files).length} generated file(s)`);
   }
+  const readmePath = join(KIT, 'README.md');
+  writeFileSync(readmePath, renderReadme(readFileSync(readmePath, 'utf8')));
+  console.log('README.md embeds refreshed');
 }
