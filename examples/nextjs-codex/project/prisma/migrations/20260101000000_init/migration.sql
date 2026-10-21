@@ -1,0 +1,1 @@
+CREATE TABLE "Invoice" ("id" TEXT PRIMARY KEY, "total" INTEGER NOT NULL);

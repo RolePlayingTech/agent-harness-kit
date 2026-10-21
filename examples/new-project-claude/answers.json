@@ -1,0 +1,6 @@
+{
+  "name": "habit-garden",
+  "summary": "Offline-first habit tracker for students; a small web app first, mobile later.",
+  "agents": ["claude", "cursor"],
+  "memory": "handoff"
+}

@@ -1,0 +1,84 @@
+Harness for invoice-hub (existing project; Node.js, TypeScript, Next.js, React, Prisma)
+Agents: OpenAI Codex
+
+Included
+  [on]  Shared project instructions (AGENTS.md)
+        Why: Every selected agent reads AGENTS.md (Claude Code through an import), so it is the
+        single source of truth for purpose, commands and boundaries.
+        Cost: Always loaded: every line costs context in every session, so it holds only what
+        applies to most tasks.
+        Files: AGENTS.md
+  [on]  Definition of done (standard)
+        Why: You chose standard rigor: catch regressions before a task is reported done without
+        running the whole suite after every edit.
+        Cost: A regression found by the full suite surfaces at the end of a task rather than
+        right after the edit that caused it.
+        Files: AGENTS.md
+  [on]  Concise test output
+        Why: Full and end-to-end runs can print thousands of lines; reading only failures keeps
+        the session focused.
+        Cost: The first failure report is less detailed; the agent re-runs the single failing
+        test verbosely when it needs more.
+        Files: AGENTS.md
+  [on]  Decision log (docs/agent/decisions.md)
+        Why: You want agreements to survive between sessions. A short log the agent reads before
+        structural changes is cheaper than re-explaining them.
+        Cost: Needs pruning: superseded entries mislead. Entries are written by the agent, so
+        review them like code.
+        Files: docs/agent/decisions.md
+  [on]  Ask-before list (advisory)
+        Why: Actions with consequences outside the working tree, or areas detected as sensitive,
+        need your approval: push, deploy, destructive, dependencies, migrations.
+        Cost: These are instructions, not permissions. A model can ignore them; enforce the ones
+        that matter with branch protection, CI or your tool's permission settings.
+        Files: AGENTS.md
+  [on]  Extra care in payments/auth code
+        Why: Detected payments (stripe) and auth (next-auth). Mistakes there are costly, so
+        changes get the full checks and are called out in the report, without asking permission
+        for every edit.
+        Cost: Slightly longer tasks when those areas change. If every change there needs your
+        sign-off, add the area to approvals instead.
+        Files: AGENTS.md
+  [on]  Project rules
+        Why: Conventions you named that the agent cannot infer from the code.
+        Cost: Each rule is loaded every session; keep only rules that change behavior.
+        Files: AGENTS.md
+  [on]  Skill: harness-maintenance
+        Why: Keeps changes to the harness going through .harness/spec.json, so rebuilding and
+        checking stay meaningful as the project evolves.
+        Cost: One more skill description in the agent's skill list (one line until used).
+        Files: .agents/skills/harness-maintenance/SKILL.md
+
+Left out
+  [off] Claude Code entry point (CLAUDE.md → @AGENTS.md)
+        Why not: Claude Code is not among the selected agents.
+  [off] Skill: verify-change (test-first and review procedure)
+        Why not: Not needed below strict rigor; the definition of done in AGENTS.md is enough.
+  [off] Session handoff (note + skill)
+        Why not: Not selected; tasks are expected to fit in one session, or git history is
+        enough to resume.
+  [off] Per-package checks in the monorepo
+        Why not: Not a multi-package workspace.
+  [off] Exploration discipline for a large codebase
+        Why not: About 1 source files: small enough that the agent can read what it needs
+        directly.
+  [off] Stack decision pending
+        Why not: The stack is known, so commands and layout come from the project itself.
+
+Instructions are not enforcement
+  Everything above is text the model reads. It shapes behavior but cannot prevent an action.
+  Enforce what matters outside the model:
+  - Pushing, merging or force-pushing to shared branches: Protect the default branch in your Git
+  host (require pull requests and reviews).
+  - Deploying, releasing or publishing: Keep deploy credentials out of the agent environment;
+  deploy from CI with a manual approval step.
+  - Deleting files, data or branches beyond what the task requires: Work on a branch or worktree
+  so deletions are recoverable from git.
+  - Adding, removing or upgrading dependencies: Review lockfile changes in pull requests; CI can
+  fail on unexpected lockfile diffs.
+  - Creating, editing or running database migrations: Require review of migration paths with
+  CODEOWNERS; run migrations only from CI.
+  - Codex: sandbox mode and approval policy in your Codex configuration.
+
+Where each agent reads it
+  - OpenAI Codex: AGENTS.md and .agents/skills/

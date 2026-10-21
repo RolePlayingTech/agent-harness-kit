@@ -1,0 +1,19 @@
+{
+  "lockVersion": 1,
+  "generator": "agent-harness-kit@3.0.0",
+  "entries": {
+    "AGENTS.md": {
+      "kind": "block",
+      "sha256": "66d8e4d0b850548cc1fd28abaac91f0a1fb764f858ba3106e39e0165776f2d24",
+      "createdFile": true
+    },
+    ".agents/skills/harness-maintenance/SKILL.md": {
+      "kind": "file",
+      "sha256": "7047d1556f3fb1cd3061d70bb6309d0564c45b3a9f943c1f1c0a218a3308a49c"
+    },
+    "docs/agent/decisions.md": {
+      "kind": "seed",
+      "sha256": "2135d2229c55ef35eee4f6707d60d09c997e19df19a27b9386f80665a1658c9f"
+    }
+  }
+}

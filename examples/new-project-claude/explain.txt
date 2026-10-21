@@ -1,0 +1,83 @@
+Harness for habit-garden (new project; stack not chosen)
+Agents: Claude Code, Cursor
+
+Included
+  [on]  Shared project instructions (AGENTS.md)
+        Why: Every selected agent reads AGENTS.md (Claude Code through an import), so it is the
+        single source of truth for purpose, commands and boundaries.
+        Cost: Always loaded: every line costs context in every session, so it holds only what
+        applies to most tasks.
+        Files: AGENTS.md
+  [on]  Claude Code entry point (CLAUDE.md → @AGENTS.md)
+        Why: Claude Code prefers CLAUDE.md; importing AGENTS.md keeps one copy of the
+        instructions instead of two that drift apart.
+        Cost: None beyond one extra file; Claude-specific notes can go below the managed block.
+        Files: CLAUDE.md
+  [on]  Definition of done (light)
+        Why: You chose light rigor: suited to prototypes where speed matters more than catching
+        every regression. No check command is set yet, so the agent is told to say what it could
+        not verify.
+        Cost: Regressions that only the full suite catches can reach review; run it before
+        merging.
+        Files: AGENTS.md
+  [on]  Decision log (docs/agent/decisions.md)
+        Why: You want agreements to survive between sessions. A short log the agent reads before
+        structural changes is cheaper than re-explaining them.
+        Cost: Needs pruning: superseded entries mislead. Entries are written by the agent, so
+        review them like code.
+        Files: docs/agent/decisions.md
+  [on]  Session handoff (note + skill)
+        Why: You work on tasks that span several sessions; a handoff note lets a fresh session
+        continue without replaying the previous conversation.
+        Cost: A stale note is worse than none, so the skill tells the agent to check it against
+        git before trusting it.
+        Files: docs/agent/handoff.md, .claude/skills/session-handoff/SKILL.md
+  [on]  Ask-before list (advisory)
+        Why: Actions with consequences outside the working tree, or areas detected as sensitive,
+        need your approval: push, deploy, destructive.
+        Cost: These are instructions, not permissions. A model can ignore them; enforce the ones
+        that matter with branch protection, CI or your tool's permission settings.
+        Files: AGENTS.md
+  [on]  Stack decision pending
+        Why: No stack is chosen yet, so the first task is to decide it with you and record it,
+        then re-run design to wire real commands.
+        Cost: Until commands exist the agent cannot verify behavior; that is stated explicitly
+        instead of hidden.
+        Files: AGENTS.md
+  [on]  Skill: harness-maintenance
+        Why: Keeps changes to the harness going through .harness/spec.json, so rebuilding and
+        checking stay meaningful as the project evolves.
+        Cost: One more skill description in the agent's skill list (one line until used).
+        Files: .claude/skills/harness-maintenance/SKILL.md
+
+Left out
+  [off] Skill: verify-change (test-first and review procedure)
+        Why not: Not needed below strict rigor; the definition of done in AGENTS.md is enough.
+  [off] Concise test output
+        Why not: No full or end-to-end suite is configured, so there is no long output to
+        manage.
+  [off] Extra care in payments/auth code
+        Why not: No payments or auth code detected outside the ask-before list.
+  [off] Project rules
+        Why not: No project-specific rules given yet; add them when the agent repeats a mistake.
+  [off] Per-package checks in the monorepo
+        Why not: Not a multi-package workspace.
+  [off] Exploration discipline for a large codebase
+        Why not: About 0 source files: small enough that the agent can read what it needs
+        directly.
+
+Instructions are not enforcement
+  Everything above is text the model reads. It shapes behavior but cannot prevent an action.
+  Enforce what matters outside the model:
+  - Pushing, merging or force-pushing to shared branches: Protect the default branch in your Git
+  host (require pull requests and reviews).
+  - Deploying, releasing or publishing: Keep deploy credentials out of the agent environment;
+  deploy from CI with a manual approval step.
+  - Deleting files, data or branches beyond what the task requires: Work on a branch or worktree
+  so deletions are recoverable from git.
+  - Claude Code: permission rules (allow/ask/deny) in .claude/settings.json, or hooks.
+  - Cursor: terminal command approval / auto-run settings.
+
+Where each agent reads it
+  - Claude Code: CLAUDE.md (which imports AGENTS.md) and .claude/skills/
+  - Cursor: AGENTS.md, .agents/skills/ and, for compatibility, .claude/skills/
