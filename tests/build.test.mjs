@@ -140,6 +140,18 @@ test('symlinked output directories are refused before any write', (t) => {
   assert.ok(!existsSync(join(outside, 'skills')));
 });
 
+test('a project reached through a symlinked or junctioned path works (macOS /var, linked folders)', (t) => {
+  const real = project(NEXT_APP);
+  const parent = project({});
+  const linked = join(parent, 'linked-project');
+  try { symlinkSync(real, linked, 'junction'); } catch { t.skip('cannot create symlinks here'); return; }
+  design(linked, ['agents=codex']);
+  const r = build(linked);
+  assert.equal(r.code, 0, r.err);
+  assert.ok(existsSync(join(real, 'AGENTS.md')));
+  assert.match(build(linked).out, /Already up to date/);
+});
+
 test('an invalid spec is reported, not guessed around', () => {
   const root = project(NEXT_APP);
   mkdirSync(join(root, '.harness'));

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 export function sha256(content) {
   return createHash('sha256').update(content).digest('hex');
@@ -40,10 +40,16 @@ export function normalizeRelPath(relPath) {
   return normalized;
 }
 
+function realOrResolved(path) {
+  try { return realpathSync.native(path); } catch { return resolve(path); }
+}
+
 /**
  * Throws unless `fullPath` is strictly inside `root` and no existing component
- * between the filesystem root and the target is a symlink or junction.
- * Existing targets must be regular files with a single hard link.
+ * between the root and the target is a symlink or junction. Links above the root
+ * (macOS /var -> /private/var, a symlinked projects folder) are the user's choice of
+ * directory and are resolved, not rejected. Existing targets must be regular files
+ * with a single hard link.
  */
 export function assertSafeTarget(root, fullPath) {
   const resolvedRoot = resolve(root);
@@ -52,20 +58,28 @@ export function assertSafeTarget(root, fullPath) {
   if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
     throw new Error(`Unsafe path: ${resolvedPath} is outside ${resolvedRoot}.`);
   }
-  let current = resolvedPath;
-  while (true) {
+  const segments = rel.split(/[\\/]/);
+  let current = resolvedRoot;
+  let deepestExisting = resolvedRoot;
+  for (let i = 0; i < segments.length; i++) {
+    current = join(current, segments[i]);
+    const isTarget = i === segments.length - 1;
     let stat = null;
     try { stat = lstatSync(current); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    if (stat?.isSymbolicLink()) throw new Error(`Unsafe path: ${current} is a symbolic link or junction.`);
-    if (stat && current === resolvedPath && (!stat.isFile() || stat.nlink > 1)) {
+    if (!stat) break;
+    deepestExisting = current;
+    if (stat.isSymbolicLink()) throw new Error(`Unsafe path: ${current} is a symbolic link or junction.`);
+    if (isTarget && (!stat.isFile() || stat.nlink > 1)) {
       throw new Error(`Unsafe path: ${current} is not a regular single-link file.`);
     }
-    if (stat && current !== resolvedPath && !stat.isDirectory()) {
+    if (!isTarget && !stat.isDirectory()) {
       throw new Error(`Unsafe path: ${current} is not a directory.`);
     }
-    const parent = dirname(current);
-    if (parent === current) break;
-    current = parent;
+  }
+  const realRoot = realOrResolved(resolvedRoot);
+  const realRel = relative(realRoot, realOrResolved(deepestExisting));
+  if (realRel.startsWith('..') || isAbsolute(realRel)) {
+    throw new Error(`Unsafe path: ${resolvedPath} resolves outside ${realRoot}.`);
   }
 }
 
