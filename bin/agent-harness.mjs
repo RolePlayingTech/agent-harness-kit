@@ -183,7 +183,7 @@ async function runBuild({ dryRun, force, interactive }) {
     if (!(await confirm('Write these files?'))) { console.log('Nothing written.'); return; }
   }
   const written = applyOps(root, plan.ops);
-  print({ ok: true, written, changes: opsJson(plan.ops, false) }, written ? `Wrote ${written} file(s):\n${describeOps(plan.ops)}\n\nNext: \`agent-harness check\`, then commit the result.` : 'Already up to date.');
+  print({ ok: true, written, changes: opsJson(plan.ops, false) }, written ? `Wrote ${written} file(s):\n${describeOps(plan.ops)}\n\nNext: \`${plan.spec.tooling.cli} check\`, then commit the result.` : 'Already up to date.');
 }
 
 try {
@@ -238,7 +238,7 @@ try {
       if (!interactive) console.log(formatExplain(spec));
       console.log(`\n${existing === text ? 'Spec unchanged' : 'Saved'}: ${SPEC_PATH}`);
       if (interactive && (await confirm('Generate the agent files now (you will see the plan first)?'))) await runBuild({ dryRun: false, force: false, interactive: true });
-      else console.log('Next: `agent-harness build --dry-run` to preview the files, then `agent-harness build`.');
+      else console.log(`Next: \`${spec.tooling.cli} build --dry-run\` to preview the files, then \`${spec.tooling.cli} build\`.`);
     }
   } else if (command === 'explain') {
     const { spec, errors: specErrors } = loadSpec(root);
