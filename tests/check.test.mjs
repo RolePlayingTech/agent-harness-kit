@@ -80,10 +80,12 @@ test('broken CLAUDE.md imports and dead path references are found', () => {
   design(root, ['agents=claude']);
   build(root);
   write(root, 'CLAUDE.md', read(root, 'CLAUDE.md') + '\n@docs/missing.md\n');
-  write(root, 'AGENTS.md', read(root, 'AGENTS.md') + '\nSee `docs/old-guide.md`.\n');
+  write(root, 'AGENTS.md', read(root, 'AGENTS.md') + '\nSee `docs/old-guide.md`. Services: `oauth.py`, sibling repo `../admin`, spec `../ADR.md`.\n');
   const { data } = jsonCli(['check', root]);
   assert.ok(data.findings.some((f) => f.code === 'import' && f.level === 'error'));
-  assert.ok(data.findings.some((f) => f.code === 'reference' && /old-guide/.test(f.message)));
+  const refs = data.findings.filter((f) => f.code === 'reference').map((f) => f.message);
+  assert.equal(refs.length, 1, 'bare file names and paths outside the repository are not reported');
+  assert.match(refs[0], /old-guide/);
 });
 
 test('the always-loaded size budget warns when exceeded', () => {

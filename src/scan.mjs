@@ -38,7 +38,7 @@ const TEST_DEPS = [
 ];
 
 const KNOWN_DIRS = {
-  'src/app': 'App Router routes and layouts', app: 'application routes', pages: 'page routes', 'src/pages': 'page routes',
+  'src/app': 'App Router routes and layouts', app: 'application code', pages: 'page routes', 'src/pages': 'page routes',
   components: 'UI components', 'src/components': 'UI components', 'src/content': 'content collections and data', lib: 'shared library code', 'src/lib': 'shared library code',
   prisma: 'database schema and migrations', migrations: 'database migrations', tests: 'tests', test: 'tests',
   e2e: 'end-to-end tests', 'tests/e2e': 'end-to-end tests', docs: 'documentation', packages: 'workspace packages',

@@ -86,7 +86,8 @@ function referencedPaths(text) {
   for (const m of text.matchAll(/`([^`\s]+)`/g)) {
     const token = m[1].replace(/[.,;:]+$/, '');
     if (/^(https?:|mailto:|--?|[~$@<])/.test(token) || /[<>*{}|=]/.test(token)) continue;
-    if (/^[\w.-]+\/[\w./-]*$/.test(token) || /^[\w.-]+\.(md|json|ya?ml|toml|mjs|js|ts|py)$/.test(token)) refs.add(token.replace(/\/$/, ''));
+    // Only repository-relative paths: a bare file name may live anywhere in the tree, and `../x` is outside the repository.
+    if (/^[\w-][\w.-]*\/[\w./-]*$/.test(token) && !token.split('/').includes('..')) refs.add(token.replace(/\/$/, ''));
   }
   return [...refs];
 }
