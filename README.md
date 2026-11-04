@@ -19,7 +19,7 @@ npx github:RolePlayingTech/agent-harness-kit check             # is the harness 
 
 `design` is an interview in your terminal: each question shows what the scan found and why it matters, and Enter accepts the proposed value. It changes nothing but `.harness/spec.json`; `build` writes the rest. Commit both, and the next person or agent gets the same harness. To use a fixed version instead of the latest commit, see [Installing and pinning a version](#installing-and-pinning-a-version).
 
-> Built for the MUMRO Academy lesson [AI Agent Harness Engineering](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/) (Polish), which explains the reasoning behind every part of this tool.
+> Built for the MUMRO Academy lesson [AI Agent Harness Engineering](https://academy.mumro.io/lessons/ai-agent-harness-engineering/) (also in [Polish](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/)), which explains the reasoning behind every part of this tool and includes an interactive context-budget simulator.
 
 ---
 
@@ -467,7 +467,8 @@ v3 replaces v2's installer and its seven fixed skills. v2 files are not touched 
 - [Harness²: Recursive Agent Harnessing for an Open World](https://arxiv.org/abs/2610.14224) (Google Cloud AI Research, 2026) models a harness as eight editable components (system prompt, guardrails, memory, tool guidance, subagents, skills, scripts, plugins) and improves them automatically from repeated task runs. The kit borrows the vocabulary and the idea that harness changes should be small and backed by evidence; it does not implement the paper's automated method.
 - [AGENTS.md](https://agents.md/), the shared instruction-file convention.
 - [Claude Code: How Claude remembers your project](https://code.claude.com/docs/en/memory), including its guidance to keep instruction files short.
-- [MUMRO Academy lesson: AI Agent Harness Engineering](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/) (Polish).
+- [MUMRO Academy lesson: AI Agent Harness Engineering](https://academy.mumro.io/lessons/ai-agent-harness-engineering/) ([Polish edition](https://academy.mumro.io/pl/lessons/ai-agent-harness-engineering/)).
+- Companion open-source kits from the same series: [`mcp-surface-kit`](https://github.com/RolePlayingTech/mcp-surface-kit), [`playwright-harness-kit`](https://github.com/RolePlayingTech/playwright-harness-kit), [`git-agent-workflow-kit`](https://github.com/RolePlayingTech/git-agent-workflow-kit), and [`data-investigation-kit`](https://github.com/RolePlayingTech/data-investigation-kit) — extracted while building [MUMRO](https://mumro.io/).
 
 ## Development
 
